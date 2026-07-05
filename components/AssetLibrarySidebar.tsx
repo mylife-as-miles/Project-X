@@ -1,0 +1,1337 @@
+"use client";
+
+import React, { useState, useEffect, useRef } from "react";
+import { 
+  X, 
+  Search, 
+  Trash2, 
+  Plus, 
+  Upload, 
+  Check, 
+  FolderOpen,
+  LayoutGrid,
+  List,
+  ArrowUpDown,
+  Maximize2,
+  Minimize2,
+  CheckSquare,
+  Square,
+  Download,
+  CheckCircle2,
+  AlertCircle,
+  Image as ImageIcon,
+  FolderKanban,
+  Star,
+  Pin,
+  Layers
+} from "lucide-react";
+
+import {
+  getStoredImage,
+  saveStoredImage,
+  deleteStoredImage,
+  getSharedProjectsForImages
+} from "../lib/indexeddb";
+
+import AssetExportDropdown from "./AssetExportDropdown";
+import AssetImportModal from "./AssetImportModal";
+import {
+  exportAssetLibraryJSON,
+  processAssetImport,
+  AssetExportItem
+} from "../lib/asset-library-export";
+
+import { ProjectAsset, getCurrentProjectId } from "../lib/projects";
+
+interface LibraryImage {
+  id: string;
+  label: string;
+  base64: string;
+  mimeType: string;
+  createdAt?: number;
+  isFavorite?: boolean;
+  isPinned?: boolean;
+}
+
+interface AssetLibrarySidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onAddImageToWorkspace: (label: string, base64: string) => void;
+  onAssetLibraryUpdated?: (assets: ProjectAsset[]) => void;
+  projectName?: string;
+}
+export default function AssetLibrarySidebar({
+  isOpen,
+  onClose,
+  onAddImageToWorkspace,
+  onAssetLibraryUpdated,
+  projectName,
+}: AssetLibrarySidebarProps) {
+  const [libraryImages, setLibraryImages] = useState<LibraryImage[]>([]);
+  const [sharedProjectsMap, setSharedProjectsMap] = useState<Record<string, string[]>>({});
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [isLoaded, setIsLoaded] = useState<boolean>(false);
+  const [dragActive, setDragActive] = useState<boolean>(false);
+  const [addedFeedbackIds, setAddedFeedbackIds] = useState<Record<string, boolean>>({});
+  
+  // Selection, Filtering & Import/Export State
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
+  const [filterTab, setFilterTab] = useState<"all" | "pinned" | "favorites">("all");
+  const [isImportModalOpen, setIsImportModalOpen] = useState<boolean>(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [statusToast, setStatusToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const jsonFileInputRef = useRef<HTMLInputElement>(null);
+
+  const toggleFavoriteAsset = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setLibraryImages((prev) =>
+      prev.map((img) =>
+        img.id === id ? { ...img, isFavorite: !img.isFavorite } : img
+      )
+    );
+  };
+
+  const togglePinAsset = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setLibraryImages((prev) =>
+      prev.map((img) =>
+        img.id === id ? { ...img, isPinned: !img.isPinned } : img
+      )
+    );
+  };
+  
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const deleteConfirmTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (deleteConfirmTimerRef.current) {
+        clearTimeout(deleteConfirmTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleDeleteClick = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+
+    if (deleteConfirmId === id) {
+      if (deleteConfirmTimerRef.current) {
+        clearTimeout(deleteConfirmTimerRef.current);
+        deleteConfirmTimerRef.current = null;
+      }
+      setDeleteConfirmId(null);
+      handleDeleteLibraryItem(id);
+    } else {
+      setDeleteConfirmId(id);
+      if (deleteConfirmTimerRef.current) {
+        clearTimeout(deleteConfirmTimerRef.current);
+      }
+      deleteConfirmTimerRef.current = setTimeout(() => {
+        setDeleteConfirmId(null);
+      }, 4000);
+    }
+  };
+
+  // Dynamic width and dragging states
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("prompt_generator_library_sidebar_width");
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 320 && parsed <= 1200) return parsed;
+      }
+    }
+    return 448; // default standard width (max-w-md equivalent)
+  });
+
+  const [isResizing, setIsResizing] = useState<boolean>(false);
+  const isResizingRef = useRef<boolean>(false);
+  const startResizeXRef = useRef<number>(0);
+  const startWidthRef = useRef<number>(448);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    isResizingRef.current = true;
+    startResizeXRef.current = e.clientX;
+    startWidthRef.current = sidebarWidth;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current) return;
+      const deltaX = e.clientX - startResizeXRef.current;
+      const newWidth = Math.max(320, Math.min(1200, startWidthRef.current + deltaX));
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      if (isResizingRef.current) {
+        isResizingRef.current = false;
+        setIsResizing(false);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        setSidebarWidth((currentWidth) => {
+          localStorage.setItem("prompt_generator_library_sidebar_width", currentWidth.toString());
+          return currentWidth;
+        });
+      }
+    };
+
+    if (isResizing) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizing]);
+  
+  // Persistent view and sorting preference
+  const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("prompt_generator_library_view_mode");
+      if (saved === "grid" || saved === "list") return saved;
+    }
+    return "grid";
+  });
+  
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "az" | "za">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("prompt_generator_library_sort_by");
+      if (saved === "newest" || saved === "oldest" || saved === "az" || saved === "za") return saved;
+    }
+    return "newest";
+  });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper to load asset library from localStorage & IndexedDB
+  const loadLibrary = async () => {
+    try {
+      const savedMetadata = localStorage.getItem("prompt_generator_library_images");
+      if (savedMetadata) {
+        const parsed = JSON.parse(savedMetadata) as Omit<LibraryImage, "base64">[];
+        const resolved = await Promise.all(
+          parsed.map(async (img) => {
+            try {
+              const base64 = await getStoredImage(img.id);
+              return { ...img, base64: base64 || "" };
+            } catch (err) {
+              console.error(`Failed to load library image ${img.id} from IndexedDB:`, err);
+              return { ...img, base64: "" };
+            }
+          })
+        );
+        setLibraryImages(resolved.filter((img) => img.base64 !== ""));
+      } else {
+        setLibraryImages([]);
+      }
+    } catch (err) {
+      console.error("Failed to load asset library", err);
+      setLibraryImages([]);
+    } finally {
+      setIsLoaded(true);
+    }
+  };
+
+  // Load library on mount or when sidebar opens
+  useEffect(() => {
+    let isMounted = true;
+    async function initLibrary() {
+      if (!isMounted) return;
+      await loadLibrary();
+    }
+    initLibrary();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen]);
+
+  // Listen to project switch events to reload project-specific asset library
+  useEffect(() => {
+    const handleProjectSwitched = () => {
+      void loadLibrary();
+    };
+    window.addEventListener("projectx_project_switched", handleProjectSwitched);
+    return () => {
+      window.removeEventListener("projectx_project_switched", handleProjectSwitched);
+    };
+  }, []);
+
+  // Check cross-project image references for asset library items
+  useEffect(() => {
+    let isMounted = true;
+    async function checkSharedProjects() {
+      if (!isOpen || libraryImages.length === 0) {
+        if (isMounted) setSharedProjectsMap({});
+        return;
+      }
+      const currentProjId = getCurrentProjectId();
+      const imageIds = libraryImages.map((img) => img.id);
+      const sharedMap = await getSharedProjectsForImages(imageIds, currentProjId || undefined);
+      if (isMounted) {
+        setSharedProjectsMap(sharedMap);
+      }
+    }
+    void checkSharedProjects();
+    return () => {
+      isMounted = false;
+    };
+  }, [libraryImages, isOpen]);
+
+  const onAssetLibraryUpdatedRef = useRef(onAssetLibraryUpdated);
+  useEffect(() => {
+    onAssetLibraryUpdatedRef.current = onAssetLibraryUpdated;
+  });
+
+  // Save library metadata to local storage and update active project when library state changes
+  useEffect(() => {
+    if (isLoaded) {
+      const stripped = libraryImages.map(({ base64, ...rest }) => rest);
+      localStorage.setItem("prompt_generator_library_images", JSON.stringify(stripped));
+      if (onAssetLibraryUpdatedRef.current) {
+        onAssetLibraryUpdatedRef.current(stripped as ProjectAsset[]);
+      }
+    }
+  }, [libraryImages, isLoaded]);
+
+  // Save viewMode & sortBy preferences on change
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem("prompt_generator_library_view_mode", viewMode);
+    }
+  }, [viewMode, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem("prompt_generator_library_sort_by", sortBy);
+    }
+  }, [sortBy, isLoaded]);
+
+  // Compress image to JPEG (quality = 0.9) via Canvas - handles transparent PNGs
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const rawBase64 = reader.result as string;
+        
+        if (file.size < 40960 && (file.type === "image/jpeg" || file.type === "image/png")) {
+          resolve(rawBase64);
+          return;
+        }
+
+        const img = new Image();
+        img.src = rawBase64;
+        img.onload = () => {
+          try {
+            const canvas = document.createElement("canvas");
+            const width = img.naturalWidth || img.width || 800;
+            const height = img.naturalHeight || img.height || 600;
+            
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext("2d");
+            if (!ctx) {
+              resolve(rawBase64);
+              return;
+            }
+
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const compressed = canvas.toDataURL("image/jpeg", 0.9);
+            resolve(compressed);
+          } catch (err) {
+            console.warn("Library image compression failed:", err);
+            resolve(rawBase64);
+          }
+        };
+        img.onerror = () => resolve(rawBase64);
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  };
+
+  const handleLibraryFiles = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+
+    // Check if any dropped/selected file is a JSON asset library export
+    const jsonFile = fileArray.find(
+      (f) => f.name.toLowerCase().endsWith(".json") || f.type === "application/json"
+    );
+
+    if (jsonFile) {
+      setImportFile(jsonFile);
+      setIsImportModalOpen(true);
+    }
+
+    // Process image reference files
+    const validFiles = fileArray.filter((f) => f.type.startsWith("image/"));
+    if (validFiles.length === 0) return;
+
+    const newLibraryItems: LibraryImage[] = [];
+
+    for (let i = 0; i < validFiles.length; i++) {
+      const file = validFiles[i];
+      try {
+        const base64 = await compressImage(file);
+        const rawName = file.name.split(".")[0];
+        const cleanLabel = rawName
+          .replace(/[_-]/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase());
+
+        const libraryImgId = `lib-img-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`;
+
+        await saveStoredImage(libraryImgId, base64);
+
+        newLibraryItems.push({
+          id: libraryImgId,
+          label: cleanLabel,
+          base64: base64,
+          mimeType: "image/jpeg",
+          createdAt: Date.now(),
+        });
+      } catch (err) {
+        console.error("Failed to add image to library:", file.name, err);
+      }
+    }
+
+    setLibraryImages((prev) => [...newLibraryItems, ...prev]);
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await handleLibraryFiles(e.dataTransfer.files);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      await handleLibraryFiles(e.target.files);
+    }
+  };
+
+  const handleUpdateLabel = (id: string, newLabel: string) => {
+    setLibraryImages(prev =>
+      prev.map(img => img.id === id ? { ...img, label: newLabel } : img)
+    );
+  };
+
+  const handleDeleteLibraryItem = async (id: string) => {
+    const nextImages = libraryImages.filter(img => img.id !== id);
+    setLibraryImages(nextImages);
+
+    // Sync current active project asset list immediately so reference check reflects deletion
+    const stripped = nextImages.map(({ base64, ...rest }) => rest);
+    try {
+      localStorage.setItem("prompt_generator_library_images", JSON.stringify(stripped));
+      if (onAssetLibraryUpdatedRef.current) {
+        onAssetLibraryUpdatedRef.current(stripped as ProjectAsset[]);
+      }
+    } catch (e) {
+      console.warn("Failed to update active project library state on item deletion:", e);
+    }
+
+    try {
+      await deleteStoredImage(id);
+    } catch (err) {
+      console.error("Failed to delete library image from IndexedDB:", err);
+    }
+  };
+
+  const handleAddToWorkspace = (img: LibraryImage) => {
+    onAddImageToWorkspace(img.label, img.base64);
+    
+    // Trigger localized success feedback animation
+    setAddedFeedbackIds(prev => ({ ...prev, [img.id]: true }));
+    setTimeout(() => {
+      setAddedFeedbackIds(prev => ({ ...prev, [img.id]: false }));
+    }, 1500);
+  };
+
+  const showToast = (type: "success" | "error", message: string) => {
+    setStatusToast({ type, message });
+    setTimeout(() => {
+      setStatusToast(null);
+    }, 3500);
+  };
+
+  const toggleSelectAsset = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    const allIds = libraryImages.map((img) => img.id);
+    setSelectedIds(new Set(allIds));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleExportAllAssets = () => {
+    try {
+      const { filename } = exportAssetLibraryJSON(libraryImages, "all", undefined, projectName);
+      showToast("success", `Exported all ${libraryImages.length} assets (${filename}).`);
+    } catch (err: any) {
+      showToast("error", err?.message || "Failed to export assets.");
+    }
+  };
+
+  const handleExportSelectedAssets = () => {
+    try {
+      const selectedAssets = libraryImages.filter((img) => selectedIds.has(img.id));
+      if (selectedAssets.length === 0) return;
+      const { filename } = exportAssetLibraryJSON(selectedAssets, "selected", undefined, projectName);
+      showToast("success", `Exported ${selectedAssets.length} selected assets (${filename}).`);
+    } catch (err: any) {
+      showToast("error", err?.message || "Failed to export selected assets.");
+    }
+  };
+
+  const handleJsonFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setImportFile(file);
+      setIsImportModalOpen(true);
+      e.target.value = "";
+    }
+  };
+
+  const handleConfirmImport = async (
+    mode: "merge" | "overwrite",
+    assets: AssetExportItem[]
+  ) => {
+    try {
+      const { newAssets, count } = await processAssetImport(assets, mode, libraryImages);
+      setLibraryImages(newAssets);
+      setSelectedIds(new Set());
+      showToast(
+        "success",
+        mode === "overwrite"
+          ? `Library overwritten with ${count} imported assets.`
+          : `Imported ${count} assets into library.`
+      );
+    } catch (err: any) {
+      showToast("error", err?.message || "Import failed.");
+      throw err;
+    }
+  };
+
+  const handleDeleteSelectedAssets = async () => {
+    if (selectedIds.size === 0) return;
+    const idsToDelete = Array.from(selectedIds);
+    setLibraryImages((prev) => prev.filter((img) => !selectedIds.has(img.id)));
+    setSelectedIds(new Set());
+
+    for (const id of idsToDelete) {
+      try {
+        await deleteStoredImage(id);
+      } catch (err) {
+        console.error(`Failed to delete library image ${id} from IndexedDB:`, err);
+      }
+    }
+    showToast("success", `Deleted ${idsToDelete.length} selected assets.`);
+  };
+
+  // Filter and sort items dynamically
+  const getSortedAndFilteredImages = () => {
+    const filtered = libraryImages.filter((img) => {
+      const matchesSearch = img.label.toLowerCase().includes(searchQuery.toLowerCase());
+      if (!matchesSearch) return false;
+
+      if (filterTab === "pinned") return Boolean(img.isPinned);
+      if (filterTab === "favorites") return Boolean(img.isFavorite);
+      return true;
+    });
+
+    return [...filtered].sort((a, b) => {
+      // Pinned items always float to top
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+
+      if (sortBy === "az") {
+        return a.label.localeCompare(b.label);
+      }
+      if (sortBy === "za") {
+        return b.label.localeCompare(a.label);
+      }
+
+      const getTimestamp = (img: LibraryImage) => {
+        if (img.createdAt) return img.createdAt;
+        const match = img.id.match(/lib-img-(\d+)/);
+        if (match && match[1]) {
+          return parseInt(match[1], 10);
+        }
+        return 0;
+      };
+
+      const timeA = getTimestamp(a);
+      const timeB = getTimestamp(b);
+
+      if (sortBy === "newest") {
+        return timeB - timeA;
+      }
+      if (sortBy === "oldest") {
+        return timeA - timeB;
+      }
+      return 0;
+    });
+  };
+
+  const sortedAndFilteredImages = getSortedAndFilteredImages();
+  const pinnedCount = libraryImages.filter((img) => img.isPinned).length;
+  const favoritesCount = libraryImages.filter((img) => img.isFavorite).length;
+
+  if (!isOpen) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 z-50 flex" 
+      id="asset-library-overlay"
+      role="dialog"
+      aria-modal="true"
+    >
+      {/* Dark backdrop clickable */}
+      <div 
+        onClick={onClose}
+        className="absolute inset-0 bg-[#1A1A1A]/40 backdrop-blur-xs transition-opacity"
+        id="asset-library-backdrop"
+      />
+
+      {/* Sidebar Panel with dynamic, adjustable width */}
+      <div 
+        className={`relative bg-[#F4F4F2] border-r border-[#D1D1CF] h-full flex flex-col shadow-2xl z-10 transform translate-x-0 ${
+          isResizing ? "transition-none" : "transition-all duration-300"
+        }`}
+        style={{ width: `${sidebarWidth}px`, maxWidth: "95vw" }}
+        id="asset-library-panel"
+      >
+        {/* Resize Handle */}
+        <div
+          onMouseDown={handleMouseDown}
+          className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-[#1A1A1A]/10 active:bg-[#1A1A1A]/20 transition-all z-30 group"
+          id="library-resize-handle"
+          title="Drag to resize library"
+        >
+          {/* Subtle accent vertical grab line indicator */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[2px] h-10 bg-[#D1D1CF] group-hover:bg-[#1A1A1A] group-active:bg-[#1A1A1A] transition-colors" />
+        </div>
+
+        {/* Header */}
+        <div className="h-20 border-b border-[#D1D1CF] bg-white px-4 sm:px-6 flex items-center justify-between gap-2 shrink-0 relative z-30" id="asset-library-header">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 pr-1">
+            <div className="w-8 h-8 bg-[#EAEAE8] border border-[#D1D1CF] flex items-center justify-center shrink-0">
+              <FolderOpen className="w-4 h-4 text-[#1A1A1A]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xs uppercase font-black tracking-widest text-[#1A1A1A] truncate">Asset Library</h2>
+              <p className="text-[9px] text-[#888884] font-mono uppercase tracking-wider truncate">Casting & Reference Bank</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Asset Import/Export Dropdown */}
+            <AssetExportDropdown
+              totalCount={libraryImages.length}
+              selectedCount={selectedIds.size}
+              onExportAll={handleExportAllAssets}
+              onExportSelected={handleExportSelectedAssets}
+              onImportClick={() => jsonFileInputRef.current?.click()}
+              disabled={!isLoaded}
+            />
+
+            {/* Hidden JSON file input for asset library import */}
+            <input
+              ref={jsonFileInputRef}
+              type="file"
+              accept=".json,application/json"
+              onChange={handleJsonFileSelected}
+              className="hidden"
+              id="library-json-importer"
+            />
+
+            {/* Quick Toggle Width Button */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextWidth = sidebarWidth >= 600 ? 448 : 768;
+                setSidebarWidth(nextWidth);
+                localStorage.setItem("prompt_generator_library_sidebar_width", nextWidth.toString());
+              }}
+              className="p-1.5 border border-[#D1D1CF] hover:border-[#1A1A1A] hover:bg-[#F4F4F2] text-[#888884] hover:text-[#1A1A1A] transition-all cursor-pointer"
+              title={sidebarWidth >= 600 ? "Collapse to Standard Width" : "Expand to Wide Width"}
+              id="toggle-library-width-btn"
+            >
+              {sidebarWidth >= 600 ? (
+                <Minimize2 className="w-3.5 h-3.5" />
+              ) : (
+                <Maximize2 className="w-3.5 h-3.5" />
+              )}
+            </button>
+
+            <button 
+              onClick={onClose}
+              className="p-1.5 border border-[#D1D1CF] hover:border-[#1A1A1A] hover:bg-[#F4F4F2] text-[#888884] hover:text-[#1A1A1A] transition-all cursor-pointer"
+              title="Close Library"
+              id="close-library-btn"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Search and Upload Section */}
+        <div className="p-6 bg-white border-b border-[#D1D1CF] flex flex-col gap-4 shrink-0" id="asset-library-actions">
+          {/* Brutalist Drag and Drop Area */}
+          <div
+            onDragEnter={handleDrag}
+            onDragOver={handleDrag}
+            onDragLeave={handleDrag}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`border-2 border-dashed flex flex-col items-center justify-center p-5 gap-1.5 cursor-pointer transition-all ${
+              dragActive 
+                ? "border-[#1A1A1A] bg-[#EAEAE8]" 
+                : "border-[#D1D1CF] bg-[#F4F4F2]/50 hover:border-[#1A1A1A] hover:bg-[#F4F4F2]"
+            }`}
+            id="library-upload-dropzone"
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,.json,application/json"
+              onChange={handleFileChange}
+              className="hidden"
+              id="library-file-uploader"
+            />
+            <Upload className="w-4 h-4 text-[#888884]" />
+            <span className="text-[10px] uppercase font-bold tracking-wider text-[#1A1A1A]">Upload reference or JSON library</span>
+            <span className="text-[8px] text-[#888884] font-mono uppercase tracking-tight">Drag images or JSON / Click to select</span>
+          </div>
+
+          {/* Row 1: Search Bar + View Mode + Select Mode */}
+          <div className="flex items-center gap-1.5" id="library-row-1">
+            {/* Search Bar */}
+            <div className="relative flex-1 min-w-0" id="library-search-wrapper">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                <Search className="w-3.5 h-3.5 text-[#888884]" />
+              </span>
+              <input
+                type="text"
+                placeholder="Search assets..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-8 bg-[#F4F4F2]/60 border border-[#D1D1CF] pl-8 pr-7 py-1 text-xs outline-none focus:border-[#1A1A1A] focus:bg-white transition-all text-[#1A1A1A]"
+                id="library-search-input"
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery("")}
+                  className="absolute inset-y-0 right-0 flex items-center pr-2 text-[#888884] hover:text-[#1A1A1A]"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            {/* View Mode Toggle */}
+            <div className="flex items-center border border-[#D1D1CF] h-8 shrink-0" id="library-view-toggles">
+              <button
+                type="button"
+                onClick={() => setViewMode("grid")}
+                className={`h-full px-2 flex items-center justify-center transition-all cursor-pointer ${
+                  viewMode === "grid" 
+                    ? "bg-[#1A1A1A] text-white" 
+                    : "bg-[#F4F4F2] text-[#888884] hover:text-[#1A1A1A] hover:bg-[#EAEAE8]"
+                }`}
+                title="Grid View"
+                id="view-grid-btn"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("list")}
+                className={`h-full px-2 border-l border-[#D1D1CF] flex items-center justify-center transition-all cursor-pointer ${
+                  viewMode === "list" 
+                    ? "bg-[#1A1A1A] text-white" 
+                    : "bg-[#F4F4F2] text-[#888884] hover:text-[#1A1A1A] hover:bg-[#EAEAE8]"
+                }`}
+                title="Compact List View"
+                id="view-list-btn"
+              >
+                <List className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Select Mode Toggle */}
+            {libraryImages.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const nextMode = !isSelectMode;
+                  setIsSelectMode(nextMode);
+                  if (!nextMode) {
+                    setSelectedIds(new Set());
+                  }
+                }}
+                className={`h-8 px-2.5 text-[9px] font-mono uppercase font-bold border transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                  isSelectMode
+                    ? "bg-amber-400 text-[#1A1A1A] border-amber-500 shadow-xs"
+                    : "bg-[#F4F4F2] text-[#888884] border-[#D1D1CF] hover:text-[#1A1A1A] hover:border-[#1A1A1A]"
+                }`}
+                title={isSelectMode ? "Exit export selection mode" : "Enter select mode for bulk export/delete"}
+                id="toggle-select-mode-btn"
+              >
+                <CheckSquare className="w-3 h-3" />
+                <span>{isSelectMode ? "Done" : "Select"}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Row 2: Filter Tabs & Sort Dropdown */}
+          <div className="flex items-center justify-between gap-1.5 mt-1" id="library-row-2">
+            {/* Left: Filter Tabs & Select All */}
+            <div className="flex items-center gap-1 overflow-x-auto py-0.5 no-scrollbar">
+              <button
+                type="button"
+                onClick={() => setFilterTab("all")}
+                className={`px-1.5 py-1 text-[9px] font-mono font-bold uppercase tracking-wider border transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                  filterTab === "all"
+                    ? "bg-[#1A1A1A] text-white border-[#1A1A1A]"
+                    : "bg-[#F4F4F2] text-[#888884] border-[#D1D1CF] hover:text-[#1A1A1A] hover:border-[#1A1A1A]"
+                }`}
+                title="All Assets"
+                id="filter-all-btn"
+              >
+                <Layers className="w-2.5 h-2.5" />
+                <span className="hidden min-[380px]:inline">All</span>
+                <span>({libraryImages.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterTab("pinned")}
+                className={`px-1.5 py-1 text-[9px] font-mono font-bold uppercase tracking-wider border transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                  filterTab === "pinned"
+                    ? "bg-[#1A1A1A] text-white border-[#1A1A1A]"
+                    : "bg-[#F4F4F2] text-[#888884] border-[#D1D1CF] hover:text-[#1A1A1A] hover:border-[#1A1A1A]"
+                }`}
+                title="Pinned Assets"
+                id="filter-pinned-btn"
+              >
+                <Pin className={`w-2.5 h-2.5 ${filterTab === "pinned" ? "text-amber-400 fill-amber-400" : ""}`} />
+                <span className="hidden min-[380px]:inline">Pinned</span>
+                <span>({pinnedCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterTab("favorites")}
+                className={`px-1.5 py-1 text-[9px] font-mono font-bold uppercase tracking-wider border transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                  filterTab === "favorites"
+                    ? "bg-[#1A1A1A] text-white border-[#1A1A1A]"
+                    : "bg-[#F4F4F2] text-[#888884] border-[#D1D1CF] hover:text-[#1A1A1A] hover:border-[#1A1A1A]"
+                }`}
+                title="Favorite Assets"
+                id="filter-favs-btn"
+              >
+                <Star className={`w-2.5 h-2.5 ${filterTab === "favorites" ? "text-amber-400 fill-amber-400" : ""}`} />
+                <span className="hidden min-[380px]:inline">Favs</span>
+                <span>({favoritesCount})</span>
+              </button>
+
+              {/* Select All Checkbox when in select mode */}
+              {isSelectMode && libraryImages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={
+                    selectedIds.size === libraryImages.length
+                      ? handleDeselectAll
+                      : handleSelectAll
+                  }
+                  className="px-1.5 py-1 border border-[#D1D1CF] hover:border-[#1A1A1A] hover:bg-[#F4F4F2] text-[9px] font-mono uppercase font-bold text-[#1A1A1A] transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                  title={selectedIds.size === libraryImages.length ? "Deselect All" : "Select All"}
+                  id="select-all-toggle-btn"
+                >
+                  {selectedIds.size === libraryImages.length ? (
+                    <CheckSquare className="w-3 h-3 text-[#1A1A1A]" />
+                  ) : (
+                    <Square className="w-3 h-3 text-[#888884]" />
+                  )}
+                  <span>{selectedIds.size === libraryImages.length ? "All" : "Select All"}</span>
+                </button>
+              )}
+            </div>
+
+            {/* Right: Sort By Dropdown */}
+            <div className="flex items-center gap-1 shrink-0" id="library-sort-wrapper">
+              <ArrowUpDown className="w-2.5 h-2.5 text-[#888884]" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="bg-[#F4F4F2] border border-[#D1D1CF] hover:border-[#1A1A1A] text-[9px] uppercase font-bold tracking-wider py-1 px-1.5 outline-none font-mono cursor-pointer transition-all text-[#1A1A1A]"
+                id="library-sort-select"
+                title="Sort Assets"
+              >
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+                <option value="az">A-Z</option>
+                <option value="za">Z-A</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Contextual Bulk Action Bar when items are selected */}
+          {selectedIds.size > 0 && (
+            <div className="bg-[#1A1A1A] text-white p-2.5 px-3 border border-[#1A1A1A] flex items-center justify-between font-mono text-[9px] uppercase tracking-wider animate-in fade-in duration-200">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="font-bold">{selectedIds.size} Selected</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleExportSelectedAssets}
+                  className="px-2 py-1 bg-white hover:bg-[#F4F4F2] text-[#1A1A1A] font-bold text-[8px] uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1"
+                  title="Export selected assets to JSON"
+                >
+                  <Download className="w-2.5 h-2.5" />
+                  <span>Export</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteSelectedAssets}
+                  className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white font-bold text-[8px] uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1"
+                  title="Delete selected assets"
+                >
+                  <Trash2 className="w-2.5 h-2.5" />
+                  <span>Delete</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeselectAll}
+                  className="px-1.5 py-1 text-stone-400 hover:text-white transition-colors"
+                  title="Clear Selection"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Status Toast Banner */}
+          {statusToast && (
+            <div
+              className={`p-2.5 px-3 border text-[10px] font-mono uppercase tracking-wider flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200 ${
+                statusToast.type === "success"
+                  ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+                  : "bg-red-50 border-red-300 text-red-800"
+              }`}
+            >
+              {statusToast.type === "success" ? (
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-600" />
+              )}
+              <span className="flex-1 truncate">{statusToast.message}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Scrollable Assets List */}
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4" id="asset-library-scroller">
+          {sortedAndFilteredImages.length === 0 ? (
+            <div className="text-center py-10 px-4 border border-[#D1D1CF] border-dashed bg-white/40" id="library-empty-state">
+              <FolderOpen className="w-8 h-8 text-[#888884] mx-auto mb-2" />
+              <p className="text-xs font-bold uppercase tracking-wider text-[#1A1A1A]">No assets found</p>
+              <p className="text-[10px] text-[#888884] leading-relaxed mt-1">
+                {searchQuery 
+                  ? "Try searching for a different name or keyword" 
+                  : "Upload visual references above or import a JSON package to build your bank!"
+                }
+              </p>
+            </div>
+          ) : (
+            <>
+                {viewMode === "grid" ? (
+                <div 
+                  className={`grid gap-3 ${
+                    sidebarWidth >= 860 
+                      ? "grid-cols-5" 
+                      : sidebarWidth >= 660 
+                      ? "grid-cols-4" 
+                      : sidebarWidth >= 460 
+                      ? "grid-cols-3" 
+                      : "grid-cols-2"
+                  }`} 
+                  id="library-assets-grid"
+                >
+                  {sortedAndFilteredImages.map((img) => {
+                    const isAdded = addedFeedbackIds[img.id];
+                    const isSelected = selectedIds.has(img.id);
+                    return (
+                      <div 
+                        key={img.id}
+                        className={`bg-white border p-2 flex flex-col gap-1.5 group relative transition-all ${
+                          isSelected 
+                            ? "border-[#1A1A1A] ring-1 ring-[#1A1A1A] bg-stone-50/50" 
+                            : img.isPinned
+                            ? "border-amber-400/70 bg-amber-50/20 hover:border-[#1A1A1A]"
+                            : "border-[#D1D1CF] hover:border-[#1A1A1A]"
+                        }`}
+                        id={`lib-card-${img.id}`}
+                      >
+                        {/* Thumbnail box */}
+                        <div className="aspect-square bg-[#EAEAE8] relative overflow-hidden flex items-center justify-center">
+                          {img.base64 && img.base64.trim().length > 0 ? (
+                            <img 
+                              src={img.base64} 
+                              alt={img.label}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <ImageIcon className="w-6 h-6 text-stone-400" />
+                          )}
+                          
+                          {/* Top Left Controls: Selection Checkbox & Pin Button */}
+                          <div className="absolute top-1 left-1 flex items-center gap-1 z-10">
+                            {(isSelectMode || isSelected) && (
+                              <button
+                                type="button"
+                                onClick={() => toggleSelectAsset(img.id)}
+                                className={`p-1 border transition-all cursor-pointer ${
+                                  isSelected
+                                    ? "bg-[#1A1A1A] border-[#1A1A1A] text-white opacity-100"
+                                    : "bg-white/90 border-[#D1D1CF] text-stone-500 hover:text-[#1A1A1A] opacity-80 group-hover:opacity-100"
+                                }`}
+                                title={isSelected ? "Deselect item" : "Select item"}
+                              >
+                                {isSelected ? (
+                                  <CheckSquare className="w-2.5 h-2.5 text-white" />
+                                ) : (
+                                  <Square className="w-2.5 h-2.5" />
+                                )}
+                              </button>
+                            )}
+
+                            {/* Pin Button */}
+                            <button
+                              type="button"
+                              onClick={(e) => togglePinAsset(img.id, e)}
+                              className={`p-1 border transition-all cursor-pointer ${
+                                img.isPinned
+                                  ? "bg-[#1A1A1A] border-[#1A1A1A] text-amber-400 opacity-100 shadow-xs"
+                                  : "bg-white/90 border-[#D1D1CF] text-stone-400 hover:text-stone-900 opacity-0 group-hover:opacity-100"
+                              }`}
+                              title={img.isPinned ? "Unpin asset" : "Pin asset to top"}
+                            >
+                              <Pin className={`w-2.5 h-2.5 ${img.isPinned ? "fill-amber-400" : ""}`} />
+                            </button>
+                          </div>
+
+                          {/* Top Right Controls: Favorite Star & Delete */}
+                          <div className="absolute top-1 right-1 flex items-center gap-1 z-10">
+                            {/* Favorite Button */}
+                            <button
+                              type="button"
+                              onClick={(e) => toggleFavoriteAsset(img.id, e)}
+                              className={`p-1 border transition-all cursor-pointer ${
+                                img.isFavorite
+                                  ? "bg-[#1A1A1A] border-[#1A1A1A] text-amber-400 opacity-100 shadow-xs"
+                                  : "bg-white/90 border-[#D1D1CF] text-stone-400 hover:text-stone-900 opacity-0 group-hover:opacity-100"
+                              }`}
+                              title={img.isFavorite ? "Remove from favorites" : "Add to favorites"}
+                            >
+                              <Star className={`w-2.5 h-2.5 ${img.isFavorite ? "fill-amber-400" : ""}`} />
+                            </button>
+
+                            {/* Delete Button */}
+                            {deleteConfirmId === img.id ? (
+                              <button
+                                onClick={(e) => handleDeleteClick(img.id, e)}
+                                className="bg-red-600 border border-red-700 text-white p-1 transition-all cursor-pointer opacity-100 z-20 animate-pulse flex items-center justify-center shadow-xs"
+                                title="Click again to confirm deletion"
+                                id={`lib-del-btn-${img.id}`}
+                              >
+                                <Check className="w-2.5 h-2.5" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => handleDeleteClick(img.id, e)}
+                                className="bg-white/90 border border-[#D1D1CF] hover:border-red-600 hover:text-red-600 text-stone-500 p-1 transition-all cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                title="Delete from library"
+                                id={`lib-del-btn-${img.id}`}
+                              >
+                                <Trash2 className="w-2.5 h-2.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Shared overlay badge on bottom left of thumbnail */}
+                          {sharedProjectsMap[img.id] && sharedProjectsMap[img.id].length > 0 && (
+                            <div 
+                              className="absolute bottom-1 left-1 bg-[#1A1A1A]/85 text-amber-400 border border-amber-400/40 px-1 py-0.5 text-[8px] font-mono font-bold flex items-center gap-0.5 shadow-xs cursor-help leading-none"
+                              title={`Shared across projects (${sharedProjectsMap[img.id].length} other project${sharedProjectsMap[img.id].length > 1 ? "s" : ""}): ${sharedProjectsMap[img.id].join(", ")}`}
+                            >
+                              <FolderKanban className="w-2.5 h-2.5 shrink-0 text-amber-400" />
+                              <span>{sharedProjectsMap[img.id].length}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Centered ID Caption */}
+                        <div className="text-center font-mono text-[7px] text-[#888884] select-all tracking-tighter leading-tight break-all flex items-center justify-center gap-1">
+                          <span>ID: {img.id}</span>
+                        </div>
+
+                        {/* Inline Label editing */}
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[7px] font-mono text-[#888884] uppercase tracking-wider">Label:</span>
+                          <input
+                            type="text"
+                            value={img.label}
+                            onChange={(e) => handleUpdateLabel(img.id, e.target.value)}
+                            placeholder="Name or description"
+                            className="text-[10px] font-bold bg-transparent border-b border-transparent hover:border-[#D1D1CF] focus:border-[#1A1A1A] outline-none text-[#1A1A1A] focus:text-stone-900 transition-colors w-full pb-0.5 font-sans"
+                            id={`lib-input-${img.id}`}
+                          />
+                        </div>
+
+                        {/* Trigger Button: Add to Workspace */}
+                        <button
+                          onClick={() => handleAddToWorkspace(img)}
+                          className={`w-full py-1 border text-[8px] uppercase tracking-wider font-bold transition-all flex items-center justify-center gap-1 cursor-pointer mt-0.5 ${
+                            isAdded
+                              ? "bg-emerald-500 border-emerald-500 text-white"
+                              : "bg-white border-[#D1D1CF] text-[#1A1A1A] hover:border-[#1A1A1A] hover:bg-[#F4F4F2]"
+                          }`}
+                          id={`lib-add-btn-${img.id}`}
+                        >
+                          {isAdded ? (
+                            <>
+                              <Check className="w-2.5 h-2.5" />
+                              Added!
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-2.5 h-2.5 text-[#888884]" />
+                              Add
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div 
+                  className={`grid gap-2 ${
+                    sidebarWidth >= 460 
+                      ? "grid-cols-2" 
+                      : "grid-cols-1"
+                  }`} 
+                  id="library-assets-list"
+                >
+                  {sortedAndFilteredImages.map((img) => {
+                    const isAdded = addedFeedbackIds[img.id];
+                    const isSelected = selectedIds.has(img.id);
+                    return (
+                      <div 
+                        key={img.id}
+                        className={`bg-white border p-1.5 flex items-center justify-between gap-2 group transition-all ${
+                          isSelected 
+                            ? "border-[#1A1A1A] ring-1 ring-[#1A1A1A] bg-stone-50/50" 
+                            : img.isPinned
+                            ? "border-amber-400/70 bg-amber-50/20 hover:border-[#1A1A1A]"
+                            : "border-[#D1D1CF] hover:border-[#1A1A1A]"
+                        }`}
+                        id={`lib-row-${img.id}`}
+                      >
+                        {/* Left: Checkbox, Thumbnail & Input */}
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                          {/* Selection Checkbox (visible in select mode or if selected) */}
+                          {(isSelectMode || isSelected) && (
+                            <button
+                              type="button"
+                              onClick={() => toggleSelectAsset(img.id)}
+                              className="p-0.5 text-stone-400 hover:text-[#1A1A1A] transition-colors cursor-pointer shrink-0"
+                              title={isSelected ? "Deselect item" : "Select item"}
+                            >
+                              {isSelected ? (
+                                <CheckSquare className="w-3.5 h-3.5 text-[#1A1A1A]" />
+                              ) : (
+                                <Square className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          )}
+
+                          {/* Thumbnail */}
+                          <div className="w-9 h-9 bg-[#EAEAE8] border border-[#D1D1CF] shrink-0 overflow-hidden flex items-center justify-center relative">
+                            {img.base64 && img.base64.trim().length > 0 ? (
+                              <img 
+                                src={img.base64} 
+                                alt={img.label}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <ImageIcon className="w-3.5 h-3.5 text-stone-400" />
+                            )}
+                          </div>
+
+                          {/* Label input */}
+                          <div className="flex-1 min-w-0 flex flex-col justify-center">
+                            <input
+                              type="text"
+                              value={img.label}
+                              onChange={(e) => handleUpdateLabel(img.id, e.target.value)}
+                              placeholder="Name or description"
+                              className="text-[10.5px] font-bold bg-transparent border-b border-transparent hover:border-[#D1D1CF] focus:border-[#1A1A1A] outline-none text-[#1A1A1A] focus:text-stone-900 transition-colors w-full py-0 px-0.5 font-sans truncate"
+                              id={`lib-row-input-${img.id}`}
+                            />
+                            {sharedProjectsMap[img.id] && sharedProjectsMap[img.id].length > 0 && (
+                              <div 
+                                className="inline-flex items-center gap-1 text-[7.5px] font-mono font-bold text-amber-800 uppercase tracking-tight px-0.5 py-0 cursor-help w-max truncate"
+                                title={`Shared across projects (${sharedProjectsMap[img.id].length} other project${sharedProjectsMap[img.id].length > 1 ? "s" : ""}): ${sharedProjectsMap[img.id].join(", ")}`}
+                              >
+                                <FolderKanban className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                                <span className="truncate">Shared ({sharedProjectsMap[img.id].length}: {sharedProjectsMap[img.id].join(", ")})</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Right: Action Buttons (Pin, Favorite, Use, Delete) */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {/* Pin Button */}
+                          <button
+                            type="button"
+                            onClick={(e) => togglePinAsset(img.id, e)}
+                            className={`p-1 border transition-all cursor-pointer h-7 w-7 flex items-center justify-center ${
+                              img.isPinned
+                                ? "bg-[#1A1A1A] border-[#1A1A1A] text-amber-400"
+                                : "bg-white border-[#D1D1CF] text-stone-400 hover:text-[#1A1A1A] hover:border-[#1A1A1A]"
+                            }`}
+                            title={img.isPinned ? "Unpin asset" : "Pin asset to top"}
+                          >
+                            <Pin className={`w-3 h-3 ${img.isPinned ? "fill-amber-400" : ""}`} />
+                          </button>
+
+                          {/* Favorite Button */}
+                          <button
+                            type="button"
+                            onClick={(e) => toggleFavoriteAsset(img.id, e)}
+                            className={`p-1 border transition-all cursor-pointer h-7 w-7 flex items-center justify-center ${
+                              img.isFavorite
+                                ? "bg-[#1A1A1A] border-[#1A1A1A] text-amber-400"
+                                : "bg-white border-[#D1D1CF] text-stone-400 hover:text-[#1A1A1A] hover:border-[#1A1A1A]"
+                            }`}
+                            title={img.isFavorite ? "Remove from favorites" : "Add to favorites"}
+                          >
+                            <Star className={`w-3 h-3 ${img.isFavorite ? "fill-amber-400" : ""}`} />
+                          </button>
+
+                          {/* Use Button */}
+                          <button
+                            onClick={() => handleAddToWorkspace(img)}
+                            className={`px-2 py-1 border text-[8.5px] uppercase tracking-wider font-bold transition-all flex items-center gap-1 cursor-pointer h-7 ${
+                              isAdded
+                                ? "bg-emerald-500 border-emerald-500 text-white"
+                                : "bg-white border-[#D1D1CF] text-[#1A1A1A] hover:border-[#1A1A1A] hover:bg-[#F4F4F2]"
+                            }`}
+                            title="Add to current workspace"
+                            id={`lib-row-add-btn-${img.id}`}
+                          >
+                            {isAdded ? (
+                              <>
+                                <Check className="w-3 h-3 shrink-0" />
+                                <span className="hidden sm:inline">Added!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-3 h-3 text-[#888884] shrink-0" />
+                                <span>Use</span>
+                              </>
+                            )}
+                          </button>
+
+                          {/* Delete button */}
+                          {deleteConfirmId === img.id ? (
+                            <button
+                              onClick={(e) => handleDeleteClick(img.id, e)}
+                              className="p-1 border border-red-600 bg-red-600 text-white hover:bg-red-700 transition-all cursor-pointer h-7 px-1.5 flex items-center justify-center gap-1 opacity-100 font-bold text-[8.5px] uppercase tracking-wider animate-pulse shadow-xs"
+                              title="Click again to confirm deletion"
+                              id={`lib-row-del-btn-${img.id}`}
+                            >
+                              <Check className="w-3 h-3 shrink-0" />
+                              <span>Confirm</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => handleDeleteClick(img.id, e)}
+                              className="p-1 border border-[#D1D1CF] hover:border-red-600 hover:text-red-600 hover:bg-stone-50 text-stone-500 transition-all cursor-pointer h-7 w-7 flex items-center justify-center opacity-60 group-hover:opacity-100 focus:opacity-100"
+                              title="Delete from library"
+                              id={`lib-row-del-btn-${img.id}`}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer info banner */}
+        <div className="p-4 bg-[#EAEAE8] border-t border-[#D1D1CF] text-center text-[9px] font-mono uppercase tracking-wider text-[#888884]" id="library-footer">
+          Stored Locally via IndexedDB & localStorage
+        </div>
+      </div>
+
+      {/* Asset Import Modal */}
+      <AssetImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => {
+          setIsImportModalOpen(false);
+          setImportFile(null);
+        }}
+        file={importFile}
+        existingCount={libraryImages.length}
+        onConfirmImport={handleConfirmImport}
+      />
+    </div>
+  );
+}
