@@ -431,3 +431,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || "Failed to upload file to Gemini Files API." }, { status: 500 });
   }
 }
+
