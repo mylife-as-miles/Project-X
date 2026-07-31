@@ -95,3 +95,4 @@ export default function HistoryCardSummary({ item, className = "" }: HistoryCard
     </div>
   );
 }
+
