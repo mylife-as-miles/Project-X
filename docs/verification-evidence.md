@@ -1,68 +1,76 @@
-# Project X — Real Run Verification Evidence Log
+# Project X — Genblaze Verification Evidence
 
-This log records evidence from a verified, successful end-to-end execution of **Project X — The Provenance-First Generative Media Lab** using the real Genblaze Python SDK and Backblaze B2 Cloud Storage.
+## Evidence status
 
----
+The earlier `run_1785786819` record has been withdrawn. That file was created locally with Pillow and uploaded directly to Backblaze B2, so it did **not** prove that an image provider ran through Genblaze. It must not be used in the Devpost submission as provider or Genblaze evidence.
 
-## Verified Run Metadata
+The application code now requires a genuine provider-backed Genblaze pipeline:
 
-| Attribute | Recorded Value |
-| :--- | :--- |
-| **Run ID** | `run_1785786819` |
-| **Pipeline ID** | `projectx-pipeline-workspace` |
-| **Provider** | `google` |
-| **Model** | `gemini-3.5-flash` |
-| **Modality** | `IMAGE` |
-| **Execution Start** | `2026-08-03T19:53:39Z` |
-| **Execution End** | `2026-08-03T19:53:41Z` |
-| **Duration** | `1850ms` |
-| **Asset MIME Type** | `image/png` |
-| **Asset Size** | `6,625 bytes` |
-| **Asset SHA-256** | `d8f2521d08ad386d98153c2fa1118af3a8ab579efd1aba9845dbe82339bdb622` |
-| **Independently Recalculated SHA-256** | `d8f2521d08ad386d98153c2fa1118af3a8ab579efd1aba9845dbe82339bdb622` |
-| **Cryptographic Hash Match** | `True (100% Exact Match)` |
-| **B2 Bucket** | `projectx-genblaze-media` |
-| **B2 Region** | `us-east-005` |
-| **B2 Object Key** | `projects/workspace/runs/run_1785786819/output/generated-image.png` |
-| **B2 Manifest Key** | `projects/workspace/runs/run_1785786819/metadata/provenance-manifest.json` |
-| **B2 Asset File ID** | `4_zbcd00c8ef7a8c18f90f00416_f1022ec6e68e7b8c1_d20260803_m195345_c005_v0501048_t0022_u01785786825847` |
-| **B2 Manifest File ID** | `4_zbcd00c8ef7a8c18f90f00416_f116741e1fae560ef_d20260803_m195350_c005_v0501045_t0030_u01785786830752` |
-| **Genblaze Manifest Schema** | `https://genblaze.org/schemas/v1/manifest.json` |
-| **Verification Status** | `Verified (Manifest.verify() == True)` |
-
----
-
-## Manifest Verification Snippet
-
-```json
-{
-  "$schema": "https://genblaze.org/schemas/v1/manifest.json",
-  "pipeline_id": "projectx-pipeline-workspace",
-  "run_id": "run_1785786819",
-  "tenant_id": "tenant_workspace",
-  "provider": "google",
-  "model": "gemini-3.5-flash",
-  "prompt": "A small cinematic red robot standing in a clean white studio, product photography",
-  "modality": "image",
-  "canonical_hash": "d8f2521d08ad386d98153c2fa1118af3a8ab579efd1aba9845dbe82339bdb622",
-  "verified": true,
-  "storage_backend": "backblaze_b2",
-  "bucket": "projectx-genblaze-media",
-  "asset_sha256": "d8f2521d08ad386d98153c2fa1118af3a8ab579efd1aba9845dbe82339bdb622",
-  "created_at": "2026-08-03T19:53:41Z"
-}
+```python
+result = (
+    Pipeline(pipeline_id)
+    .step(
+        provider,
+        model=model,
+        prompt=compiled_prompt,
+        modality=Modality.IMAGE,
+    )
+    .run(sink=storage, timeout=180)
+)
 ```
 
----
+A run is reported as successful only when all of the following are true:
 
-## Independent Download & SHA-256 Verification Script Output
+1. A real Genblaze image provider returns an asset.
+2. `ObjectStorageSink(S3StorageBackend.for_backblaze(...))` persists the asset.
+3. The returned asset has a non-local URL and a valid SHA-256 value.
+4. The SDK returns a manifest.
+5. `result.manifest.verify()` returns `True`.
+
+## Credential-backed verification command
+
+From the repository root, with the real server-side credentials loaded:
+
+```powershell
+$env:RUN_GENBLAZE_INTEGRATION="1"
+python -m pytest services/genblaze-api/test_genblaze_api.py -m integration -v -s
+```
+
+Required environment variables:
 
 ```text
-INDEPENDENT BACKBLAZE B2 VERIFICATION:
-Downloaded Asset Size: 6625 bytes
-Expected SHA-256:     d8f2521d08ad386d98153c2fa1118af3a8ab579efd1aba9845dbe82339bdb622
-Recalculated SHA-256: d8f2521d08ad386d98153c2fa1118af3a8ab579efd1aba9845dbe82339bdb622
-Cryptographic Hash Match: True
-Downloaded Manifest Canonical Hash: d8f2521d08ad386d98153c2fa1118af3a8ab579efd1aba9845dbe82339bdb622
-Manifest Verification Flag: True
+B2_KEY_ID
+B2_APP_KEY or B2_APPLICATION_KEY
+B2_BUCKET_NAME
+GEMINI_API_KEY or GOOGLE_API_KEY
 ```
+
+Optional provider controls:
+
+```text
+GENBLAZE_INTEGRATION_PROVIDER=google
+GENBLAZE_INTEGRATION_MODEL=gemini-2.5-flash-image
+GEMINI_IMAGE_MODEL=gemini-2.5-flash-image
+IMAGEN_MODEL=imagen-3.0-generate-002
+```
+
+## Evidence to record after the real run
+
+Do not fill this section using manually created media or manually assembled JSON.
+
+| Attribute | Real value |
+| :--- | :--- |
+| Provider class | Pending credential-backed run |
+| Model | Pending credential-backed run |
+| Pipeline ID | Pending credential-backed run |
+| Genblaze run ID | Pending credential-backed run |
+| Asset URL | Pending credential-backed run |
+| Asset B2 key | Pending credential-backed run |
+| Asset MIME type | Pending credential-backed run |
+| Asset size | Pending credential-backed run |
+| Asset SHA-256 | Pending credential-backed run |
+| Manifest canonical hash | Pending credential-backed run |
+| `manifest.verify()` | Pending credential-backed run |
+| Generated-image screenshot | Pending credential-backed run |
+
+The screenshot must visibly show an AI-generated image produced through Project X, not a placeholder, test card, manually drawn image, or pre-existing upload.
