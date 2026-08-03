@@ -5,19 +5,19 @@
 
 **[projectx.mylife-as-miles.my.id](https://projectx.mylife-as-miles.my.id)**
 
-*A production-minded workspace for designing, executing, comparing, and reproducing generative-media experiments. Creators can build dynamic prompt templates, attach visual references, generate media through the Genblaze Python SDK, and preserve outputs and cryptographic provenance in Backblaze B2.*
+*A workspace for designing, executing, comparing, and reproducing generative-media experiments. Creators can build dynamic prompt templates, attach visual references, generate images through Genblaze, and preserve outputs and cryptographic provenance in Backblaze B2.*
 
 </div>
 
 ---
 
-## Architecture Diagram
+## Architecture
 
 ```mermaid
 flowchart LR
     A[Project X Web App] --> B[Next.js API Proxy /api/genblaze]
-    B --> C[Genblaze FastAPI Service services/genblaze-api]
-    C --> D[Google / OpenAI Provider]
+    B --> C[Genblaze FastAPI Service]
+    C --> D[Google or OpenAI Image Provider]
     D --> C
     C --> E[Backblaze B2 ObjectStorageSink]
     E --> F[Generated Asset]
@@ -28,69 +28,111 @@ flowchart LR
 
 ---
 
-## ⚡ Built for the Backblaze Generative Media Hackathon
+## Built for the Backblaze Generative Media Hackathon
 
-Project X was enhanced for the **Backblaze Generative Media Hackathon: Build with Genblaze on B2**:
+Project X includes:
 
-- **Real Genblaze Pipeline (`genblaze-core`)**: Executes media generation pipelines (`Modality.IMAGE`) using the official Genblaze Python SDK.
-- **Backblaze B2 S3 Object Storage (`genblaze-s3`)**: Uses `ObjectStorageSink` and `S3StorageBackend.for_backblaze(...)` to automatically upload generated media assets, project configurations, and canonical manifests to Backblaze B2 (`b2://projectx-genblaze-media`).
-- **Cryptographic Provenance Manifests**: Generates canonical Genblaze Provenance Manifests (`$schema: https://genblaze.org/schemas/v1/manifest.json`) with byte-level SHA-256 asset hashing and `Manifest.verify()` checks.
-- **FastAPI Microservice Architecture**: Decoupled Python service (`services/genblaze-api/`) handling provider execution and B2 uploads cleanly over HTTP.
-- **Provenance UI & History Panel**: Renders real Run IDs, Pipeline IDs, B2 object keys, SHA-256 hashes, and verification badges in the output panel and session history.
+- **Provider-backed Genblaze Pipeline** — `Pipeline.step(...).run(sink=...)` executes a genuine Google or OpenAI image provider through `Modality.IMAGE`.
+- **Backblaze B2 Durable Storage** — `ObjectStorageSink` and `S3StorageBackend.for_backblaze(...)` persist provider-returned assets and Genblaze manifests.
+- **Honest Verification** — the API reports success only after a provider asset exists, its URL is non-local, its SHA-256 is valid, and `manifest.verify()` returns `True`.
+- **FastAPI Microservice** — a separate Python service handles Genblaze provider execution and B2 storage over HTTP.
+- **Provenance UI** — Project X displays the actual run ID, provider, image model, asset URL, SHA-256, B2 object key when derivable, and verification status.
+
+The withdrawn Pillow/direct-upload test is documented in [`docs/verification-evidence.md`](docs/verification-evidence.md) and is not presented as Genblaze evidence.
 
 ---
 
 ## Features
 
-### 🎛️ Prompt Engineering & Execution Modes
-- **Dual Execution Modes**:
-  - **1. Prompt Test (LLM)**: LLM text prompt analysis and template compilation using Google Gemini.
-  - **2. Generate Image (Genblaze B2)**: Media generation pipeline using the Genblaze Python SDK and Backblaze B2 storage.
-- **Dynamic Template Variables** — Add `{{ placeholders }}` to your prompt template and form fields appear automatically. No hardcoding needed.
-- **Custom Presets** — Save, update, or delete your own presets. Share them via URL or import/export as JSON files. Visual badges show whether a preset is loaded or has unsaved changes.
-- **Preset Compare & Diff Viewer** — Side-by-side differences between your current config and any saved preset, with color-coded additions and deletions.
+### Prompt Engineering & Execution Modes
 
-### 🖼️ Multimodal Reference Assets
-- **Image References** — Drag and drop images as casting or scene references, auto-mapped to `@imageN`.
-- **Video References (MP4 & YouTube)** — Upload MP4 video clips or paste YouTube URLs, validated and mapped to `@videoN` annotations.
-- **Gemini Files API** — Direct upload and management of media files up to 2 GB with built-in file browsing.
+- **Prompt Test (LLM)** — test prompt templates with Gemini text models.
+- **Generate Image (Genblaze B2)** — execute an image-generation provider through Genblaze and store the result in B2.
+- **Dynamic Template Variables** — add `{{ placeholders }}` and Project X creates the corresponding fields.
+- **Custom Presets** — save, update, delete, import, export, and compare prompt presets.
+- **Preset Diff Viewer** — compare the active configuration with saved versions.
 
-### 🛡️ Provenance & Durable Storage
-- **Backblaze B2 Cloud Storage** — S3-compatible cloud object storage for assets, thumbnails, metadata, and provenance manifests.
-- **Cryptographic Transparency** — Real-time display of asset SHA-256, B2 object keys, manifest URLs, and verification status.
+### Multimodal Reference Assets
+
+- Image references mapped to `@imageN`.
+- MP4 and YouTube video references mapped to `@videoN` for prompt-analysis workflows.
+- Gemini Files API support for large media references.
+
+### Provenance & Durable Storage
+
+- Backblaze B2 storage for generated assets and Genblaze manifests.
+- Provider/model attribution from the actual Genblaze run.
+- Asset SHA-256 and manifest canonical hash.
+- Verification states that do not default to success.
 
 ---
 
 ## Built-in Presets
 
-ProjectX includes 10 built-in system presets stored under `/prompts/presets/[preset_id]/`:
+Project X includes 10 built-in system presets under `/prompts/presets/[preset_id]/`:
 
 | Preset | Focus & Usage |
 |--------|---------------|
-| **Cine DeepDive** | A comprehensive film analysis tool performing multi-dimensional scene breakdowns across shot design, framing, lighting, and composition. |
-| **Color Mapper** | Extracts and analyzes the emotional logic and color psychology of visual palettes. |
-| **Comp Decoder** | Reverse-engineers visual framing into geometric compositional building blocks. |
-| **Film Lingo** | Translates plain-English scene concepts into precise filmmaker vocabulary. |
-| **Genre Lexicon** | Deconstructs the signature visual DNA and stylistic conventions of specific genres. |
-| **Motion Lab** | Analyzes camera movement types, speed qualities, and emotional motivations. |
-| **Scene Lab** | Translates character interactions into cinematic visual descriptions. |
-| **Shot Interp** | Breaks down finished scenes into professional shot lists and cut rhythms. |
-| **Style Architect** | Synthesizes visual references into a comprehensive, reusable visual style guide. |
-| **Vis Narrative** | Transforms creative ideas into director-level visual treatments with loglines and tonal maps. |
+| **Cine DeepDive** | Multi-dimensional film-scene analysis. |
+| **Color Mapper** | Visual palette and color-psychology analysis. |
+| **Comp Decoder** | Geometric composition and framing analysis. |
+| **Film Lingo** | Translation from plain descriptions into filmmaker vocabulary. |
+| **Genre Lexicon** | Genre and visual-movement conventions. |
+| **Motion Lab** | Camera movement and its emotional motivation. |
+| **Scene Lab** | Visual direction for character interactions. |
+| **Shot Interp** | Professional shot-list and editing-rhythm breakdowns. |
+| **Style Architect** | Reusable visual style-guide generation. |
+| **Vis Narrative** | Director-level visual treatments and tonal maps. |
 
 ---
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) 20 or later
-- [Python](https://www.python.org/) 3.12 or later
-- [Backblaze B2 Account & Credentials](https://www.backblaze.com/cloud-storage) (`B2_KEY_ID`, `B2_APPLICATION_KEY`)
+- Node.js 20+
+- Python 3.11+
+- Backblaze B2 bucket and application key
+- At least one image provider key:
+  - `GEMINI_API_KEY` or `GOOGLE_API_KEY`, or
+  - `OPENAI_API_KEY`
+
+---
+
+## Environment Variables
+
+```text
+# Next.js → FastAPI
+GENBLAZE_API_BASE_URL=http://127.0.0.1:8000
+
+# Backblaze B2 — server only
+B2_KEY_ID=
+B2_APP_KEY=
+# B2_APPLICATION_KEY is also accepted and mapped to B2_APP_KEY at runtime.
+B2_BUCKET_NAME=
+
+# Google image generation — server only
+GEMINI_API_KEY=
+GEMINI_IMAGE_MODEL=gemini-2.5-flash-image
+# Optional Imagen fallback
+IMAGEN_MODEL=imagen-3.0-generate-002
+
+# Optional OpenAI image generation — server only
+OPENAI_API_KEY=
+OPENAI_IMAGE_MODEL=dall-e-3
+
+# Explicit CORS allowlist for the Python service
+PROJECTX_ALLOWED_ORIGINS=http://localhost:3000,https://projectx.mylife-as-miles.my.id
+
+# Optional timeout in seconds
+GENBLAZE_GENERATION_TIMEOUT=180
+```
+
+Never expose B2 or provider credentials through `NEXT_PUBLIC_*` variables or client requests.
 
 ---
 
 ## Getting Started
 
-### 1. Clone Repository & Install Node Dependencies
+### 1. Install Node dependencies
 
 ```bash
 git clone https://github.com/mylife-as-miles/Project-X.git
@@ -98,49 +140,58 @@ cd Project-X
 npm install
 ```
 
-### 2. Install Python Genblaze Dependencies
+### 2. Install the Python service
 
 ```bash
-pip install -r services/genblaze-api/requirements.txt
+cd services/genblaze-api
+python -m pip install -r requirements.txt
 ```
 
-### 3. Start Genblaze Python Service
+### 3. Start FastAPI from `services/genblaze-api`
 
 ```bash
-uvicorn services.genblaze-api.main:app --host 127.0.0.1 --port 8000
+uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-### 4. Start Next.js Development Server
+### 4. Start Next.js in a second terminal
 
 ```bash
+cd ../..
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open `http://localhost:3000`.
 
 ---
 
-## Verification & Testing
+## Testing
 
-Run the Pytest suite for the Genblaze Python microservice:
-
-```bash
-pytest services/genblaze-api/test_genblaze_api.py
-```
-
-Run Next.js build and type checking:
+### Unit tests
 
 ```bash
+python -m pytest services/genblaze-api/test_genblaze_api.py -m "not integration" -v
+npx tsc --noEmit
 npm run build
 ```
 
+### Real provider + B2 integration test
+
+Load real server-side credentials, then run:
+
+```powershell
+$env:RUN_GENBLAZE_INTEGRATION="1"
+python -m pytest services/genblaze-api/test_genblaze_api.py -m integration -v -s
+```
+
+The integration test is skipped unless `RUN_GENBLAZE_INTEGRATION=1`. It must return a genuine provider-generated image URL, a 64-character asset SHA-256, and a manifest whose `verify()` method succeeds.
+
 ---
 
-## Documentation Links
+## Documentation
 
 - [Hackathon Architecture](docs/hackathon-architecture.md)
 - [Judge Testing Guide](docs/judge-testing-guide.md)
 - [Demo Script](docs/demo-script.md)
 - [Devpost Submission Copy](docs/submission-copy.md)
-- [Verification Evidence Log](docs/verification-evidence.md)
-- [Genblaze SDK Developer Feedback](docs/genblaze-feedback.md)
+- [Verification Evidence](docs/verification-evidence.md)
+- [Genblaze SDK Feedback](docs/genblaze-feedback.md)
