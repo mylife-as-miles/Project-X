@@ -17,6 +17,16 @@ ProjectX is a **first-draft playground** for prompt engineering. Write your syst
 
 ---
 
+## ⚡ Genblaze & Backblaze B2 Hackathon Integration
+
+ProjectX is powered by the **Genblaze Python SDK** (`genblaze-core`, `genblaze-s3`) and **Backblaze B2 Cloud Storage** for the *Backblaze Generative Media Hackathon*:
+
+- **Genblaze Provenance Pipeline**: Every generation produces a canonical provenance manifest (`$schema: https://genblaze.org/schemas/v1/manifest.json`) capturing the model, prompt, parameters, timestamps, and SHA-256 asset hash for integrity verification.
+- **Backblaze B2 Storage**: Media assets, project configurations, and provenance manifests are uploaded to durable, S3-compatible Backblaze B2 buckets (`b2://projectx-genblaze-media`), delivering credential-free, long-term asset URLs.
+- **Genblaze API Route**: Includes a Next.js server endpoint (`/api/genblaze`) that invokes `server/genblaze_pipeline.py` to orchestrate media workflows and return verified provenance records.
+
+---
+
 ## Features
 
 ### 🎛️ Prompt Engineering

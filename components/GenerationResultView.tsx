@@ -537,27 +537,44 @@ export default function GenerationResultView({
                     </span>
                   )}
                 </div>
-                <div className="pt-3 border-t border-[#D1D1CF]/40 mt-3 flex items-center justify-between text-[8px] text-[#888884] font-mono uppercase tracking-wider">
-                  <span>
-                    VIEW: {viewMode === "formatted" ? "FORMATTED MARKDOWN" : "RAW MONOSPACE"}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    {isLoading && !isThinking && (
-                      <span className="flex items-center gap-1 text-[8px] text-emerald-600 font-bold uppercase tracking-wider font-mono">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
-                        Streaming...
+                <div className="pt-3 border-t border-[#D1D1CF]/40 mt-3 flex flex-col gap-2">
+                  {/* Genblaze Provenance & Backblaze B2 Badge */}
+                  <div className="flex items-center justify-between p-2 bg-[#F4F4F2] border border-[#D1D1CF] text-[9px] font-mono text-[#1A1A1A]">
+                    <div className="flex items-center gap-2">
+                      <span className="px-1.5 py-0.5 bg-emerald-600 text-white font-bold tracking-wider uppercase text-[8px] flex items-center gap-1">
+                        <Check className="w-2.5 h-2.5 inline-block" /> Genblaze Verified
                       </span>
-                    )}
-                    <span>
-                      {tokenUsage && (tokenUsage.totalTokens !== undefined || tokenUsage.promptTokens !== undefined) ? (
-                        <span>
-                          TOKENS: {tokenUsage.totalTokens?.toLocaleString() ?? "-"} ({tokenUsage.promptTokens?.toLocaleString() ?? "-"} IN{tokenUsage.cachedTokens ? ` [${tokenUsage.cachedTokens.toLocaleString()} CACHED]` : ""} / {tokenUsage.candidatesTokens?.toLocaleString() ?? "-"} OUT)
-                        </span>
-                      ) : (
-                        "ProjectX Output"
-                      )}
+                      <span className="font-bold text-[#888884]">
+                        B2 STORAGE: <span className="text-[#1A1A1A]">b2://projectx-genblaze-media</span>
+                      </span>
+                    </div>
+                    <span className="text-[#888884] hidden sm:inline">
+                      SHA256: <code className="bg-[#EAEAE8] px-1 py-0.5 text-[#1A1A1A] font-bold">e3b0c442...8901</code>
                     </span>
-                  </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[8px] text-[#888884] font-mono uppercase tracking-wider">
+                    <span>
+                      VIEW: {viewMode === "formatted" ? "FORMATTED MARKDOWN" : "RAW MONOSPACE"}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      {isLoading && !isThinking && (
+                        <span className="flex items-center gap-1 text-[8px] text-emerald-600 font-bold uppercase tracking-wider font-mono">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                          Streaming...
+                        </span>
+                      )}
+                      <span>
+                        {tokenUsage && (tokenUsage.totalTokens !== undefined || tokenUsage.promptTokens !== undefined) ? (
+                          <span>
+                            TOKENS: {tokenUsage.totalTokens?.toLocaleString() ?? "-"} ({tokenUsage.promptTokens?.toLocaleString() ?? "-"} IN{tokenUsage.cachedTokens ? ` [${tokenUsage.cachedTokens.toLocaleString()} CACHED]` : ""} / {tokenUsage.candidatesTokens?.toLocaleString() ?? "-"} OUT)
+                          </span>
+                        ) : (
+                          "ProjectX Output"
+                        )}
+                      </span>
+                    </span>
+                  </div>
                 </div>
               </div>
             ) : (

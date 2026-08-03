@@ -1,0 +1,3 @@
+genblaze-core>=0.3.0
+genblaze-s3>=0.3.0
+genblaze-google>=0.3.0
