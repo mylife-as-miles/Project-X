@@ -95,6 +95,25 @@ export interface TokenUsage {
   cachedTokens?: number;
 }
 
+export interface MediaRunMetadata {
+  runId?: string;
+  pipelineId?: string;
+  provider?: string;
+  model?: string;
+  modality?: string;
+  startedAt?: string;
+  completedAt?: string;
+  durationMs?: number;
+  assetUrl?: string;
+  b2Key?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  sha256?: string;
+  manifestUrl?: string;
+  manifestB2Key?: string;
+  verified?: boolean;
+}
+
 interface GenerationResultViewProps {
   generationResult: string;
   thinkingResult: string;
@@ -108,6 +127,7 @@ interface GenerationResultViewProps {
   handleCopyOutput: () => void;
   tokenUsage?: TokenUsage | null;
   selectedModel?: string;
+  mediaRun?: MediaRunMetadata | null;
 }
 
 export default function GenerationResultView({
@@ -122,7 +142,8 @@ export default function GenerationResultView({
   copied,
   handleCopyOutput,
   tokenUsage,
-  selectedModel = "gemini-3.6-flash",
+  selectedModel = "gemini-3.5-flash",
+  mediaRun,
 }: GenerationResultViewProps) {
   const [viewMode, setViewMode] = useState<"formatted" | "raw">("formatted");
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
@@ -539,18 +560,48 @@ export default function GenerationResultView({
                 </div>
                 <div className="pt-3 border-t border-[#D1D1CF]/40 mt-3 flex flex-col gap-2">
                   {/* Genblaze Provenance & Backblaze B2 Badge */}
-                  <div className="flex items-center justify-between p-2 bg-[#F4F4F2] border border-[#D1D1CF] text-[9px] font-mono text-[#1A1A1A]">
-                    <div className="flex items-center gap-2">
-                      <span className="px-1.5 py-0.5 bg-emerald-600 text-white font-bold tracking-wider uppercase text-[8px] flex items-center gap-1">
-                        <Check className="w-2.5 h-2.5 inline-block" /> Genblaze Verified
-                      </span>
-                      <span className="font-bold text-[#888884]">
-                        B2 STORAGE: <span className="text-[#1A1A1A]">b2://projectx-genblaze-media</span>
+                  <div className="flex flex-col gap-2 p-2.5 bg-[#F4F4F2] border border-[#D1D1CF] text-[9px] font-mono text-[#1A1A1A]">
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2">
+                        {mediaRun?.verified ? (
+                          <span className="px-1.5 py-0.5 bg-emerald-600 text-white font-bold tracking-wider uppercase text-[8px] flex items-center gap-1">
+                            <Check className="w-2.5 h-2.5 inline-block" /> Genblaze Verified
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 bg-amber-600 text-white font-bold tracking-wider uppercase text-[8px] flex items-center gap-1">
+                            Stored Unverified
+                          </span>
+                        )}
+                        <span className="font-bold text-[#888884]">
+                          B2 BUCKET: <span className="text-[#1A1A1A]">{mediaRun?.b2Key ? `b2://${mediaRun.b2Key}` : "b2://projectx-genblaze-media"}</span>
+                        </span>
+                      </div>
+                      <span className="text-[#888884] hidden sm:inline">
+                        SHA256: <code className="bg-[#EAEAE8] px-1 py-0.5 text-[#1A1A1A] font-bold">{mediaRun?.sha256 ? `${mediaRun.sha256.slice(0, 8)}...${mediaRun.sha256.slice(-4)}` : "e3b0c442...8901"}</code>
                       </span>
                     </div>
-                    <span className="text-[#888884] hidden sm:inline">
-                      SHA256: <code className="bg-[#EAEAE8] px-1 py-0.5 text-[#1A1A1A] font-bold">e3b0c442...8901</code>
-                    </span>
+
+                    {/* Detailed Provenance Metadata Grid */}
+                    {mediaRun && (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-[#D1D1CF]/60 text-[8.5px] font-mono">
+                        <div>
+                          <span className="text-[#888884] uppercase block">RUN ID:</span>
+                          <span className="font-bold text-[#1A1A1A]">{mediaRun.runId || "-"}</span>
+                        </div>
+                        <div>
+                          <span className="text-[#888884] uppercase block">PROVIDER:</span>
+                          <span className="font-bold text-[#1A1A1A]">{mediaRun.provider || "google"}</span>
+                        </div>
+                        <div>
+                          <span className="text-[#888884] uppercase block">MODEL:</span>
+                          <span className="font-bold text-[#1A1A1A]">{mediaRun.model || "gemini-3.5-flash"}</span>
+                        </div>
+                        <div>
+                          <span className="text-[#888884] uppercase block">DURATION:</span>
+                          <span className="font-bold text-[#1A1A1A]">{mediaRun.durationMs ? `${mediaRun.durationMs}ms` : "-"}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between text-[8px] text-[#888884] font-mono uppercase tracking-wider">

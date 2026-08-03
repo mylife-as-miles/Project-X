@@ -147,6 +147,8 @@ export default function PromptGeneratorPage() {
   const [videoError, setVideoError] = useState<string | null>(null);
   
   // Generation state
+  const [generationMode, setGenerationMode] = useState<"prompt_test" | "generate_image">("prompt_test");
+  const [mediaRun, setMediaRun] = useState<any | null>(null);
   const [generationResult, setGenerationResult] = useState<string>("");
   const [filledPrompt, setFilledPrompt] = useState<string>("");
   const [thinkingResult, setThinkingResult] = useState<string>("");
@@ -1875,6 +1877,61 @@ export default function PromptGeneratorPage() {
         customApiKey: customApiKey ? customApiKey : undefined,
       };
 
+    // If in Generate Image mode, call real Genblaze Python SDK pipeline via /api/genblaze
+    if (generationMode === "generate_image") {
+      try {
+        let compiled = promptTemplate;
+        Object.entries(inputs).forEach(([key, value]) => {
+          compiled = compiled.replace(new RegExp(`{{\\s*${key}\\s*}}`, "g"), value);
+        });
+        setFilledPrompt(compiled);
+        setIsThinking(false);
+
+        const res = await fetch("/api/genblaze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: activeProject?.id || "workspace",
+            compiledPrompt: compiled || "Generate creative image asset",
+            provider: "google",
+            model: selectedModel,
+            parameters: { temperature, maxTokens, thinkingLevel },
+          }),
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          setGenerationResult(`### 🎨 Genblaze Provenance Media Run Completed\n\n**Run ID:** \`${data.run.id}\`\n**Pipeline ID:** \`${data.run.pipelineId}\`\n**Provider:** \`${data.run.provider}\`\n**Model:** \`${data.run.model}\`\n**Duration:** \`${data.run.durationMs}ms\`\n\n![Generated Media](${data.asset.url})\n\n- **Asset SHA-256:** \`${data.asset.sha256}\`\n- **Backblaze B2 Object Key:** \`${data.asset.b2Key}\`\n- **Manifest URL:** [Download Provenance Manifest](${data.manifest.url})`);
+          setMediaRun({
+            runId: data.run.id,
+            pipelineId: data.run.pipelineId,
+            provider: data.run.provider,
+            model: data.run.model,
+            modality: "image",
+            startedAt: data.run.startedAt,
+            completedAt: data.run.completedAt,
+            durationMs: data.run.durationMs,
+            assetUrl: data.asset.url,
+            b2Key: data.asset.b2Key,
+            mimeType: data.asset.mimeType,
+            sizeBytes: data.asset.sizeBytes,
+            sha256: data.asset.sha256,
+            manifestUrl: data.manifest.url,
+            manifestB2Key: data.manifest.b2Key,
+            verified: data.manifest.verified,
+          });
+        } else {
+          setError(data.error?.message || "Genblaze image generation failed.");
+        }
+      } catch (err: any) {
+        setError(err.message || "Failed to communicate with Genblaze pipeline endpoint.");
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2204,6 +2261,37 @@ export default function PromptGeneratorPage() {
             onInputChange={(v, val) => setInputs(prev => ({ ...prev, [v]: val }))}
           />
 
+          {/* Generation Mode Selector */}
+          <div className="mt-4 flex flex-col gap-1.5">
+            <label className="text-[10px] font-black uppercase tracking-[0.15em] text-[#1A1A1A]">
+              Execution Mode
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setGenerationMode("prompt_test")}
+                className={`py-2 px-3 text-[10px] font-bold tracking-wider uppercase border transition-all cursor-pointer ${
+                  generationMode === "prompt_test"
+                    ? "bg-[#1A1A1A] text-white border-[#1A1A1A]"
+                    : "bg-white text-[#1A1A1A] border-[#D1D1CF] hover:border-[#1A1A1A]"
+                }`}
+              >
+                1. Prompt Test (LLM)
+              </button>
+              <button
+                type="button"
+                onClick={() => setGenerationMode("generate_image")}
+                className={`py-2 px-3 text-[10px] font-bold tracking-wider uppercase border transition-all cursor-pointer ${
+                  generationMode === "generate_image"
+                    ? "bg-emerald-700 text-white border-emerald-700 font-black"
+                    : "bg-white text-[#1A1A1A] border-[#D1D1CF] hover:border-emerald-700"
+                }`}
+              >
+                2. Generate Image (Genblaze B2)
+              </button>
+            </div>
+          </div>
+
           {/* Action Trigger Button */}
           <div className="mt-2">
             <button
@@ -2212,6 +2300,8 @@ export default function PromptGeneratorPage() {
               className={`w-full h-14 uppercase tracking-[0.25em] font-bold text-xs transition-all active:scale-[0.98] cursor-pointer ${
                 isLoading 
                   ? "bg-[#EAEAE8] text-[#888884] border border-[#D1D1CF] cursor-not-allowed"
+                  : generationMode === "generate_image"
+                  ? "bg-emerald-700 text-white hover:bg-emerald-800 border border-emerald-700"
                   : "bg-[#1A1A1A] text-white hover:bg-[#333] border border-[#1A1A1A]"
               }`}
               id="generate-prompt-btn"
@@ -2219,10 +2309,10 @@ export default function PromptGeneratorPage() {
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  Synthesizing Sequence...
+                  {generationMode === "generate_image" ? "Generating Image & Storing to B2..." : "Synthesizing Sequence..."}
                 </span>
               ) : (
-                "Generate Sequence"
+                generationMode === "generate_image" ? "Execute Genblaze Image Pipeline" : "Generate Sequence"
               )}
             </button>
           </div>
@@ -2260,6 +2350,7 @@ export default function PromptGeneratorPage() {
             handleCopyOutput={handleCopyOutput}
             tokenUsage={tokenUsage}
             selectedModel={selectedModel}
+            mediaRun={mediaRun}
           />
 
         </div>
