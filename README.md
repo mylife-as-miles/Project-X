@@ -88,7 +88,7 @@ Project X features a fully redesigned, responsive **Library Catalogue** serving 
 - **Category Navigation** — Browse by AI Scenes, The Written Motion, FRAME Series, and AI Clips with contextual section badges.
 - **Featured Curations** — Handpicked standout scripts surfaced at the top.
 
-→ See the full list in **[Project X Catalogue](PROJECT_X_CATALOGUE.md)** — all 33 project scenes with IDs, dates, and video models.
+→ See the full list in **[Project X Catalogue](PROJECT_X_CATALOGUE.md)** — all 34 project scenes with IDs, dates, and video models.
 
 ---
 
