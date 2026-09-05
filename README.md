@@ -88,7 +88,7 @@ Project X features a fully redesigned, responsive **Library Catalogue** serving 
 - **Category Navigation** — Browse by AI Scenes, The Written Motion, FRAME Series, and AI Clips with contextual section badges.
 - **Featured Curations** — Handpicked standout scripts surfaced at the top.
 
-→ See the full list in **[Project X Catalogue](PROJECT_X_CATALOGUE.md)** — all 34 project scenes with IDs, dates, and video models.
+→ See the full list in **[Project X Catalogue](PROJECT_X_CATALOGUE.md)** with IDs, dates, and video models.
 
 ---
 
@@ -105,7 +105,7 @@ Project X helps you see how well an AI model followed your screenplay prompt:
 
 ### Example Projects
 
-Browse all 33 project scenes in the **[Project X Catalogue](PROJECT_X_CATALOGUE.md)** — organized by AI Scenes, The Written Motion, FRAME Series, and AI Clips, each with shareable `?example=` IDs.
+Browse all projects in the **[Project X Catalogue](PROJECT_X_CATALOGUE.md)** — organized by AI Scenes, The Written Motion, FRAME Series, and AI Clips, each with shareable `?example=` IDs.
 
 ---
 
