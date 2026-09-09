@@ -253,7 +253,7 @@ export async function getSceneHistory(projectId: string, sceneId: string): Promi
           SELECT 
             generation_number,
             avg(overall_score) as avg_score,
-            max(created_at) as created_at,
+            max(created_at) as latest_created_at,
             argMax(category_scores, created_at) as cat_scores_json
           FROM generation_runs
           WHERE project_id = {pId: String} AND scene_id = {sId: String}
@@ -276,7 +276,7 @@ export async function getSceneHistory(projectId: string, sceneId: string): Promi
           return {
             generationNumber: Number(r.generation_number),
             overallScore: Math.round(Number(r.avg_score)),
-            createdAt: String(r.created_at),
+            createdAt: String(r.latest_created_at),
             categoryScores,
           };
         });
