@@ -62,8 +62,6 @@ Project X is built with a modern, lightweight, and performant web stack designed
 
 ## 5. Analytics & Performance Monitoring
 
-- **Vercel Speed Insights (`@vercel/speed-insights: ^2.0.0`)**: Real-time Web Vitals and performance monitoring in production environments.
-- **Vercel Analytics (`@vercel/analytics: ^2.0.1`)**: Privacy-friendly audience and traffic insights for production deployments.
 
 ---
 
@@ -80,3 +78,7 @@ Project X is built with a modern, lightweight, and performant web stack designed
 - **express (`^4.21.2`) & `@types/express` (`^4.17.21`)**: Lightweight HTTP server utilities for preview or self-hosted deployment environments.
 - **@google/genai (`^1.29.0`)**: Official Google Gen AI SDK for AI workflow integrations.
 
+
+## Production hosting
+
+ChatGPT Sites hosts the React frontend. Google Cloud Run hosts the standalone Express API, Google ADK and Gemini 2.5 on Vertex AI, with GCS artifact storage and ClickHouse Cloud analytics. See [deployment guide](DEPLOYMENT.md).

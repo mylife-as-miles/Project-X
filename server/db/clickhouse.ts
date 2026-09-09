@@ -281,7 +281,7 @@ export async function getSceneHistory(projectId: string, sceneId: string): Promi
           };
         });
 
-        return analyzeComparison(projectId, sceneId, runs);
+        return { ...analyzeComparison(projectId, sceneId, runs), connected: true };
       } else {
         return {
           projectId,
@@ -290,6 +290,7 @@ export async function getSceneHistory(projectId: string, sceneId: string): Promi
           improvements: [],
           regressions: [],
           narrative: 'No previous generation analyses.',
+          connected: true,
         };
       }
     } catch (err) {
@@ -301,6 +302,7 @@ export async function getSceneHistory(projectId: string, sceneId: string): Promi
         improvements: [],
         regressions: [],
         narrative: 'History unavailable — ClickHouse query failed.',
+        connected: false,
       };
     }
   }
@@ -311,7 +313,9 @@ export async function getSceneHistory(projectId: string, sceneId: string): Promi
     .sort((a, b) => a.generationNumber - b.generationNumber);
 
   if (matchingSessionRuns.length > 0) {
-    return analyzeComparison(projectId, sceneId, matchingSessionRuns);
+    const comparison = analyzeComparison(projectId, sceneId, matchingSessionRuns);
+    return { ...comparison, connected: false,
+      narrative: `ClickHouse disconnected — showing temporary session memory only. ${comparison.narrative}` };
   }
 
   // ClickHouse is not connected and no live session records exist
@@ -322,6 +326,7 @@ export async function getSceneHistory(projectId: string, sceneId: string): Promi
     improvements: [],
     regressions: [],
     narrative: 'History unavailable — ClickHouse is not connected.',
+    connected: false,
   };
 }
 

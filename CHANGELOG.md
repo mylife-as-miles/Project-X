@@ -1,3 +1,5 @@
+> Historical release log. Vercel deployment and telemetry entries describe legacy versions. Current production uses ChatGPT Sites and Google Cloud Run; see [deployment guide](docs/DEPLOYMENT.md).
+
 # Changelog
 
 All notable changes to this project will be documented in this file.

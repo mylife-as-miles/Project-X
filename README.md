@@ -170,17 +170,39 @@ Different cinematic dimensions carry distinct storytelling weight:
 
 ---
 
+## Production architecture
+
+```text
+ChatGPT Sites (React frontend)
+      ↓ HTTPS
+Google Cloud Run (Express API)
+      ├── Google ADK → Gemini 2.5 / Vertex AI
+      ├── Google Cloud Storage
+      └── ClickHouse Cloud
+```
+
+The backend serves API routes only. See [Cloud Run deployment, IAM and Secret Manager setup](docs/DEPLOYMENT.md).
+
+## ChatGPT Sites Frontend
+
+1. Build/publish the React frontend through ChatGPT Sites.
+2. Set the public build variable `VITE_API_BASE_URL=https://YOUR-SERVICE.run.app` before `npm run build`.
+3. Set Cloud Run's `CHATGPT_SITE_ORIGIN` to the final published Sites origin, without a trailing slash.
+4. Rebuild/publish the frontend whenever the API base URL changes.
+
+ChatGPT Sites = frontend. Cloud Run = backend, including the server-side ADK agent. Production API calls require the configured HTTPS backend origin. Local Vite development may use its integrated API by leaving the public URL blank.
+
 ## 🛠️ Quickstart & Local Setup
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 20
 - npm or yarn
 
 ### 1. Clone & Install
 ```bash
 git clone https://github.com/mylife-as-miles/Project-X.git
 cd Project-X
-npm install
+npm ci
 ```
 
 ### 2. Configure Environment (Optional)
@@ -189,7 +211,8 @@ Copy `.env.example` or create a `.env` file in the root directory:
 # Google Cloud Vertex AI (Preferred for Hackathon Production Mode)
 GOOGLE_CLOUD_PROJECT=your-google-cloud-project-id
 GOOGLE_CLOUD_LOCATION=us-central1
-GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
+# Local development only, optional; Cloud Run uses its attached service account.
+# GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
 
 # Google Gemini API Key (Alternative for Local Developer Mode)
 GEMINI_API_KEY=your_gemini_api_key_here
@@ -214,7 +237,7 @@ Open `http://localhost:3000` in your browser. The Vite server automatically moun
 ```bash
 npm test
 ```
-Executes all 7 Vitest test suites (26 tests) verifying multimodal video ingestion, authenticity, security, scoring logic, beat parsing, and API routes.
+Executes the Vitest suites verifying multimodal video ingestion, authenticity, security, scoring logic, beat parsing, and API routes.
 
 ### 5. Production Build
 ```bash

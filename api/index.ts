@@ -1,3 +1,4 @@
+// Legacy optional Vercel adapter. Canonical production backend: server/index.ts on Cloud Run.
 import express from 'express';
 import { apiRouter } from '../server/api';
 

@@ -1,3 +1,4 @@
+import { vertexConfig } from './config';
 import { Router, Request, Response } from 'express';
 import { GeminiDirectorAgent } from './gemini/directorAgent';
 import { getSceneHistory, getClickHouseClient } from './db/clickhouse';
@@ -7,36 +8,23 @@ import { version as adkVersion } from '@google/adk';
 export const apiRouter = Router();
 const directorAgent = new GeminiDirectorAgent();
 
-apiRouter.get('/health', (req: Request, res: Response) => {
+apiRouter.get('/health', async (_req: Request, res: Response) => {
+  const vertex = vertexConfig();
   const ch = getClickHouseClient();
-  const gcs = getGcsStorage();
-  const useVertexAi = Boolean(process.env.GOOGLE_CLOUD_PROJECT || process.env.GOOGLE_APPLICATION_CREDENTIALS);
-  const vertexProject = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCS_PROJECT_ID || '';
-  const vertexLocation = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
-  const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.length > 5);
-  const isDemoMode = process.env.DEMO_MODE === 'true';
-
-  let geminiStatus = 'Unavailable (Credentials Missing)';
-  if (useVertexAi && vertexProject) {
-    geminiStatus = `Active (Google Cloud Vertex AI: ${vertexProject} in ${vertexLocation})`;
-  } else if (hasGeminiKey) {
-    geminiStatus = 'Active (Gemini Developer API)';
+  let clickhouse = 'disconnected';
+  if (ch) {
+    try { clickhouse = (await ch.ping()).success ? 'connected' : 'disconnected'; }
+    catch { clickhouse = 'disconnected'; }
   }
-
+  const gcs = process.env.GCS_BUCKET_NAME && getGcsStorage() ? 'configured' : 'unconfigured';
   res.json({
-    status: 'ok',
-    system: 'Project X — Agentic Script-to-Screen QA',
-    framework: '@google/adk',
-    adkVersion,
-    agent: 'project_x_director_agent',
-    agentStack: `Google Cloud Agent Development Kit (@google/adk v${adkVersion}) with Gemini 2.5 on ${useVertexAi ? 'Vertex AI' : 'Google GenAI'}`,
-    mode: isDemoMode ? 'demo' : 'live',
-    runtime: {
-      googleAdk: `Active (@google/adk v${adkVersion} Director Agent)`,
-      geminiMultimodal: geminiStatus,
-      clickhouse: ch ? 'Connected (Cloud)' : 'Unavailable (Disconnected)',
-      googleCloudStorage: gcs ? 'Connected (GCS)' : 'Unavailable (Local Dev Cache)',
-    },
+    status: 'ok', system: 'Project X',
+    deployment: process.env.K_SERVICE ? 'Google Cloud Run' : 'Standalone Node API',
+    framework: '@google/adk', adkVersion,
+    agent: { name: 'project_x_director_agent', framework: '@google/adk', vertexAi: vertex.configured },
+    agentStack: `Google ADK (@google/adk v${adkVersion}) with Gemini 2.5`,
+    mode: process.env.DEMO_MODE === 'true' ? 'demo' : 'live',
+    services: { vertexAi: vertex.configured ? 'configured' : 'unconfigured', clickhouse, gcs },
     timestamp: new Date().toISOString(),
   });
 });
@@ -44,13 +32,20 @@ apiRouter.get('/health', (req: Request, res: Response) => {
 // Primary analysis execution endpoint: POST /api/analysis/run
 apiRouter.post('/analysis/run', async (req: Request, res: Response) => {
   try {
-    const { scriptText, videoSource, sceneId, generationNumber, videoProvider, videoModel } = req.body;
+    const { scriptText, videoSource, sceneId, generationNumber, videoProvider, videoModel } = req.body || {};
 
-    if (!scriptText || typeof scriptText !== 'string') {
+    if (typeof scriptText !== 'string' || !scriptText.trim() || scriptText.length > 200000) {
       res.status(400).json({ error: 'scriptText is required' });
       return;
     }
 
+    if ((videoSource !== undefined && (typeof videoSource !== 'string' || videoSource.length > 8192)) ||
+        (sceneId !== undefined && (typeof sceneId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(sceneId))) ||
+        (generationNumber !== undefined && (!Number.isInteger(generationNumber) || generationNumber < 1 || generationNumber > 1000000)) ||
+        [videoProvider, videoModel].some(value => value !== undefined && (typeof value !== 'string' || value.length > 128))) {
+      res.status(400).json({ error: 'Invalid analysis payload. Use a video URL or gs:// URI, not inline base64.' });
+      return;
+    }
     const result = await directorAgent.runPipeline({
       scriptText,
       videoSource: videoSource || '',
@@ -65,7 +60,7 @@ apiRouter.post('/analysis/run', async (req: Request, res: Response) => {
     console.error('[API /analysis/run] Error:', error);
     res.status(500).json({
       error: 'Failed to complete agentic analysis',
-      message: error?.message || 'Unknown error',
+      code: 'ANALYSIS_FAILED',
     });
   }
 });
@@ -73,8 +68,10 @@ apiRouter.post('/analysis/run', async (req: Request, res: Response) => {
 // Targeted prompt fix endpoint: POST /api/analysis/regenerate-prompt
 const handleRegeneratePrompt = async (req: Request, res: Response) => {
   try {
-    const { cue, staging } = req.body;
-    if (!cue) {
+    const { cue, staging } = req.body || {};
+    if (!cue || typeof cue !== 'object' || Array.isArray(cue) || typeof cue.id !== 'string' ||
+        typeof cue.selectedText !== 'string' || !Number.isFinite(cue.startTime) || !Number.isFinite(cue.endTime) ||
+        (staging !== undefined && (typeof staging !== 'object' || staging === null || Array.isArray(staging)))) {
       res.status(400).json({ error: 'cue is required' });
       return;
     }

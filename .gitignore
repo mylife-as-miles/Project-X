@@ -7,3 +7,7 @@ coverage/
 .env*
 !.env.example
 .gcs_cache/
+
+*.pem
+*service-account*.json
+*credentials*.json

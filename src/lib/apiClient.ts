@@ -1,3 +1,4 @@
+import { apiFetch } from './apiConfig';
 import type { 
   Cue, 
   AnalysisSummary, 
@@ -44,7 +45,7 @@ export async function runAgenticAnalysis(params: {
 
   try {
     updateProgress('Transmitting to Google Gen AI Director Agent...', 2, 6);
-    const response = await fetch('/api/analysis/run', {
+    const response = await apiFetch('/api/analysis/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
@@ -128,70 +129,21 @@ export async function requestPromptFix(params: {
   cue: Cue;
   staging?: any;
 }): Promise<RegenerationRecommendation | null> {
-  try {
-    const res = await fetch('/api/analysis/regenerate-prompt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return data.recommendation;
-    }
-  } catch (err) {
-    console.warn('[apiClient] Server regenerate error:', err);
-  }
-
-  // Fallback regeneration prompt template if server offline
-  const cue = params.cue;
-  let revisedPrompt = '';
-  let cameraCorrections = '';
-  let actionCorrections = '';
-  const guardrails: string[] = [];
-  const negativeConstraints: string[] = [];
-
-  if (cue.type === 'camera') {
-    revisedPrompt = `Physical camera move: Medium shot of character. The camera physically dollies forward 1.5 meters along the floor axis over 2.5 seconds, settling into a tight medium close-up. Keep horizon level.`;
-    cameraCorrections = 'Mandatory physical forward dolly track. Do not crop or digital-zoom.';
-    actionCorrections = 'Actor maintains steady posture and eyeline throughout movement.';
-    guardrails.push('Enforce 180-degree axis discipline.');
-    guardrails.push('Physical rig movement only; no focal-length zooming.');
-    negativeConstraints.push('static camera, digital crop, floating camera roll, morphing background');
-  } else if (cue.type === 'action') {
-    revisedPrompt = `Subject stands stage-left holding a folded manuscript in right hand. On dialogue emphasis, subject sharply snaps the paper downward against right thigh with audible fabric impact. Jaw clenches firmly after snap.`;
-    cameraCorrections = 'Framing must encompass waist to mid-thigh to register hand impact.';
-    actionCorrections = 'Decisive downward slap of folded paper against trouser leg.';
-    guardrails.push('Enforce object permanence for folded manuscript.');
-    guardrails.push('Match-on-action contact frames.');
-    negativeConstraints.push('limp hands, stationary posture, paper disappearance, rubbery motion');
-  } else {
-    revisedPrompt = `Macro focus on desk surface. Wooden metronome and brass pendulum click at exact 0.5s cadence. Lighting matches overhead tungsten grid.`;
-    cameraCorrections = 'Static macro lockoff on desk surface.';
-    actionCorrections = 'Mechanical trigger synchronized with rhythmic beat.';
-    guardrails.push('Temporal synchronization of physical impact with sound emission.');
-    negativeConstraints.push('delay, asynchronous audio, jitter');
-  }
-
-  return {
-    cueId: cue.id,
-    problem: cue.failureReason || cue.explanation || 'Visual divergence from screenplay',
-    revisedPrompt,
-    guardrails,
-    continuityRequirements: 'Strict spatial continuity across cuts; maintain actor orientations relative to center desk axis.',
-    cameraCorrections,
-    actionCorrections,
-    audioVfxCorrections: 'Preserve acoustics matching room geometry.',
-    negativeConstraints,
-  };
+  const res = await apiFetch('/api/analysis/regenerate-prompt', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(params),
+  });
+  return (await res.json()).recommendation;
 }
 
 export async function fetchSceneHistory(sceneId: string, projectId: string = 'project-x'): Promise<GenerationComparison> {
+  let failure = 'ClickHouse unavailable';
   try {
-    const res = await fetch(`/api/analysis/history/${encodeURIComponent(projectId)}/${encodeURIComponent(sceneId)}`);
+    const res = await apiFetch(`/api/analysis/history/${encodeURIComponent(projectId)}/${encodeURIComponent(sceneId)}`);
     if (res.ok) {
       return await res.json();
     }
   } catch (err) {
+    failure = err instanceof Error ? err.message : 'API unreachable';
     console.warn('[apiClient] Fetch history error:', err);
   }
 
@@ -202,7 +154,7 @@ export async function fetchSceneHistory(sceneId: string, projectId: string = 'pr
     runs: [],
     improvements: [],
     regressions: [],
-    narrative: 'History unavailable — ClickHouse is not connected.',
+    narrative: `History unavailable — ${failure}`,
     connected: false,
   };
 }

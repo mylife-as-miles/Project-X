@@ -1,3 +1,5 @@
+import { fetchVideo } from '../media';
+import { vertexConfig } from '../config';
 import { GoogleGenAI } from '@google/genai';
 import { Agent, FunctionTool, Gemini, version as adkVersion } from '@google/adk';
 import fs from 'fs';
@@ -70,14 +72,13 @@ export class GeminiDirectorAgent {
   public queryGenerationHistoryTool: FunctionTool<any>;
 
   constructor() {
-    const gcpProject = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCS_PROJECT_ID;
-    const gcpLocation = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
+    const { project: gcpProject, location: gcpLocation } = vertexConfig();
     const apiKey = process.env.GEMINI_API_KEY;
 
     // Prefer Vertex AI for Google Cloud production hackathon mode
-    if (gcpProject || process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    if (gcpProject) {
       this.useVertexAi = true;
-      this.vertexProjectId = gcpProject || 'project-x-cloud';
+      this.vertexProjectId = gcpProject;
       this.vertexLocation = gcpLocation;
       try {
         this.ai = new GoogleGenAI({
@@ -95,7 +96,7 @@ export class GeminiDirectorAgent {
       } catch (err) {
         console.warn('[GeminiDirectorAgent] Vertex AI initialization warning:', err);
       }
-    } else if (apiKey && apiKey !== 'demo' && apiKey.length > 5) {
+    } else if (process.env.NODE_ENV !== 'production' && apiKey && apiKey !== 'demo' && apiKey.length > 5) {
       // Local Developer Mode using Gemini API Key
       try {
         this.ai = new GoogleGenAI({ apiKey });
@@ -294,7 +295,7 @@ export class GeminiDirectorAgent {
         toolContext: {} as any,
       })) as GenerationComparison;
       if (!history.connected) {
-        clickhouseMessage = 'ClickHouse Cloud is disconnected — run was cached in local intelligence state.';
+        clickhouseMessage = history.narrative;
       }
     } catch {
       clickhouseMessage = 'ClickHouse Cloud is offline.';
@@ -305,6 +306,8 @@ export class GeminiDirectorAgent {
     let analysisSourceDescription = 'Google ADK Director Agent (Gemini 2.5 on Vertex AI)';
     if (isDemoMode) {
       analysisSourceDescription = 'Demo fixture / precomputed benchmark';
+    } else if (rawError || !videoValidation.attached) {
+      analysisSourceDescription = rawError || videoValidation.error || 'Video analysis unavailable';
     } else if (this.useVertexAi) {
       analysisSourceDescription = `Google ADK (@google/adk v${adkVersion}) — Vertex AI (${this.vertexProjectId} / ${this.vertexLocation})`;
     } else if (this.hasApiKey) {
@@ -314,8 +317,8 @@ export class GeminiDirectorAgent {
     }
 
     const storageSourceDescription = gcsResult.persistedToGcs
-      ? `Google Cloud Storage (gs://${process.env.GCS_BUCKET_NAME || 'project-x-analysis'})`
-      : 'Local development storage (Dev cache)';
+      ? 'Google Cloud Storage — Saved'
+      : process.env.NODE_ENV === 'production' ? 'GCS failure — artifact not saved' : 'Local development storage (Dev cache)';
 
     const clickhouseSourceDescription = clickhouseSuccess
       ? 'ClickHouse Cloud (Connected & Synchronized)'
@@ -503,7 +506,7 @@ Return a JSON array of timestamp-grounded observations. Each element MUST be:
       return {
         videoValidation: videoAsset,
         observations: [],
-        rawError: err?.message || 'Gemini video analysis model execution error',
+        rawError: 'Vertex AI / Gemini unavailable: video analysis failed. Check backend logs and service account permissions.',
       };
     }
   }
@@ -782,15 +785,15 @@ Return JSON:
 
     // 4. Local File Path (e.g. public/benchmark/mismatch_test.mp4)
     try {
-      const potentialPaths = [
-        trimmed,
-        path.resolve(trimmed),
-        path.resolve('public', trimmed.replace(/^\/+|public[\\/]/, '')),
-        path.resolve('public/benchmark', path.basename(trimmed)),
-      ];
+      const benchmarkRoot = path.resolve('public/benchmark');
+      const candidate = path.resolve(trimmed.startsWith('/benchmark/') ? `public${trimmed}` : trimmed);
+      const relative = path.relative(benchmarkRoot, candidate);
+      const potentialPaths = !relative.startsWith('..') && !path.isAbsolute(relative) && /\.(mp4|webm)$/i.test(candidate)
+        ? [candidate] : [];
 
       for (const p of potentialPaths) {
-        if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+        if (fs.existsSync(p) && fs.statSync(p).isFile() && fs.statSync(p).size <= 20 * 1024 * 1024 &&
+            fs.realpathSync(p).startsWith(fs.realpathSync(benchmarkRoot) + path.sep)) {
           const buffer = fs.readFileSync(p);
           const base64Data = buffer.toString('base64');
           return {
@@ -838,10 +841,10 @@ Return JSON:
 
     // 6. Direct HTTP/HTTPS Video URL (fetches the video bytes into buffer)
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      const isDirectVideoUrl = trimmed.endsWith('.mp4') || trimmed.endsWith('.webm') || trimmed.includes('/video/');
+      const isDirectVideoUrl = /\.(mp4|webm)$/i.test(new URL(trimmed).pathname) || new URL(trimmed).pathname.includes('/video/');
       if (isDirectVideoUrl) {
         try {
-          const res = await fetch(trimmed);
+          const res = await fetchVideo(trimmed);
           if (res.ok) {
             const arrayBuffer = await res.arrayBuffer();
             const buffer = Buffer.from(arrayBuffer);

@@ -21,6 +21,9 @@ describe('Secret Security & Client Bundle Hygiene', () => {
           const content = fs.readFileSync(full, 'utf-8');
           expect(content).not.toContain('process.env.GEMINI_API_KEY');
           expect(content).not.toContain('process.env.CLICKHOUSE_PASSWORD');
+          for (const secret of ['CLICKHOUSE_HOST', 'CLICKHOUSE_USER', 'CLICKHOUSE_DATABASE', 'GOOGLE_APPLICATION_CREDENTIALS', 'GEMINI_API_KEY', 'CLICKHOUSE_PASSWORD']) {
+            expect(content).not.toContain(secret);
+          }
         }
       }
     };

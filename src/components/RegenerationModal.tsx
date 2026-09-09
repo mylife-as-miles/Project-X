@@ -10,6 +10,7 @@ interface RegenerationModalProps {
   cue: Cue | null;
   recommendation: RegenerationRecommendation | null;
   isLoading?: boolean;
+  error?: string | null;
 }
 
 export const RegenerationModal: React.FC<RegenerationModalProps> = ({
@@ -18,6 +19,7 @@ export const RegenerationModal: React.FC<RegenerationModalProps> = ({
   cue,
   recommendation,
   isLoading = false,
+  error = null,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -68,6 +70,8 @@ export const RegenerationModal: React.FC<RegenerationModalProps> = ({
               <Sparkles className="animate-spin mx-auto text-purple-500" size={28} />
               <p className="font-semibold text-text-main">Director Agent is analyzing camera failure and constructing prompt fix...</p>
             </div>
+          ) : error ? (
+            <p role="alert" className="text-red-500">{error}</p>
           ) : recommendation ? (
             <>
               {/* Divergence Diagnosis */}

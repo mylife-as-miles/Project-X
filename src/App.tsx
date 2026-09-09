@@ -86,6 +86,7 @@ export default function App() {
   const [analysisSummary, setAnalysisSummary] = useState<AnalysisSummary | null>(null);
   const [isFidelityDashboardOpen, setIsFidelityDashboardOpen] = useState(false);
   const [selectedFailureForRegen, setSelectedFailureForRegen] = useState<Cue | null>(null);
+  const [regenError, setRegenError] = useState<string | null>(null);
   const [regenRecommendation, setRegenRecommendation] = useState<RegenerationRecommendation | null>(null);
   const [isRegenModalOpen, setIsRegenModalOpen] = useState(false);
   const [isRegenLoading, setIsRegenLoading] = useState(false);
@@ -278,10 +279,13 @@ export default function App() {
     setSelectedFailureForRegen(cue);
     setIsRegenModalOpen(true);
     setIsRegenLoading(true);
+    setRegenError(null);
+    setRegenRecommendation(null);
     try {
       const rec = await requestPromptFix({ cue });
       setRegenRecommendation(rec);
     } catch (e) {
+      setRegenError(e instanceof Error ? e.message : 'Prompt generation failed');
       console.warn('Fix error:', e);
     } finally {
       setIsRegenLoading(false);
@@ -1148,6 +1152,7 @@ export default function App() {
         cue={selectedFailureForRegen}
         recommendation={regenRecommendation}
         isLoading={isRegenLoading}
+        error={regenError}
       />
 
       {/* Cross-Gen History & Comparison Modal */}

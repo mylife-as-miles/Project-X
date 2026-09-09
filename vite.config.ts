@@ -8,12 +8,9 @@ function expressApiPlugin(): Plugin {
   const getApp = () => {
     if (!appPromise) {
       appPromise = (async () => {
-        const express = await import('express');
-        const { apiRouter } = await import('./server/api');
-        const app = express.default();
-        app.use(express.default.json({ limit: '25mb' }));
-        app.use('/api', apiRouter);
-        return app;
+        await import('dotenv/config');
+        const { createApp } = await import('./server/app');
+        return createApp();
       })();
     }
     return appPromise;
@@ -41,6 +38,7 @@ function expressApiPlugin(): Plugin {
 
 export default defineConfig(() => {
   return {
+    envPrefix: 'VITE_API_BASE_URL',
     plugins: [react(), tailwindcss(), expressApiPlugin()],
     resolve: {
       alias: {

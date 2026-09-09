@@ -63,9 +63,9 @@ export const CrossGenHistoryModal: React.FC<CrossGenHistoryModalProps> = ({
             <div className="py-12 px-6 rounded-2xl border border-amber-500/20 bg-amber-500/5 text-center space-y-3">
               <AlertCircle size={32} className="mx-auto text-amber-500" />
               <div className="space-y-1">
-                <h3 className="text-sm font-bold text-text-main">History unavailable — ClickHouse is not connected</h3>
+                <h3 className="text-sm font-bold text-text-main">History unavailable</h3>
                 <p className="text-xs text-text-muted max-w-md mx-auto">
-                  ClickHouse Cloud credentials are not configured or the host is unreachable. Configure CLICKHOUSE_HOST, CLICKHOUSE_USER, and CLICKHOUSE_PASSWORD in your environment to persist multi-attempt analytics.
+                  {comparison?.narrative || 'ClickHouse unavailable. Check the backend service configuration.'}
                 </p>
               </div>
             </div>

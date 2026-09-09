@@ -8,7 +8,7 @@ const LOCAL_CACHE_DIR = path.resolve('.gcs_cache');
 export interface GcsUploadResult {
   url: string;
   persistedToGcs: boolean;
-  provider: 'Google Cloud Storage' | 'Local development cache';
+  provider: 'Google Cloud Storage' | 'Local development cache' | 'Not saved';
   bucketName?: string;
   destinationPath: string;
   sizeBytes: number;
@@ -19,7 +19,7 @@ export function getGcsStorage(): Storage | null {
 
   try {
     if (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GCS_BUCKET_NAME) {
-      storage = new Storage();
+      storage = new Storage({ projectId: process.env.GCS_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || undefined });
       return storage;
     }
   } catch (err) {
@@ -61,6 +61,10 @@ export async function uploadArtifactToGcs(
     } catch (err) {
       console.warn(`[GCS] Upload failed for gs://${bucketName}/${destinationPath}:`, err);
     }
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    return { url: '', persistedToGcs: false, provider: 'Not saved', destinationPath, sizeBytes: 0 };
   }
 
   // Local development cache fallback (never masquerade as genuine GCS)
