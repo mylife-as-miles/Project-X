@@ -5,7 +5,6 @@ import {
   ChevronDown, 
   Check, 
   Book, 
-  Coffee, 
   Palette,
   MoveHorizontal, 
   AlignVerticalJustifyCenter 
@@ -159,15 +158,6 @@ export const ScriptHeaderControls: React.FC<ScriptHeaderControlsProps> = ({
             >
               <Book size={10} /> Library
             </button>
-            <a 
-              href="https://ko-fi.com/tarumainfo"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Support on Ko-fi"
-              className={cn("lg:hidden", UI_TOKENS.button.supportPill)}
-            >
-              <Coffee size={10} />
-            </a>
           </div>
         )}
         <div className="flex items-center gap-1.5">

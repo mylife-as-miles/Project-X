@@ -224,7 +224,7 @@ The UI layer coordinates video playback, real-time highlighting, user interactio
 - **Cue Sanitization Pipeline**: All data ingress paths (localStorage restore, default load, blank, example, remote fetch) route through `sanitizeCues()` in `useScriptStorage`, guaranteeing deterministic IDs and `type`/`colorClass` normalization.
 
 ### Modular Sub-components (`src/components/`)
-1. **`AppHeader.tsx`**: Global navigation header with Project X logo, Guide/Library/Ko-fi action buttons, real-time playback clock, and Playback/Edit mode toggle.
+1. **`AppHeader.tsx`**: Global navigation header with Project X logo, Guide/Library action buttons, real-time playback clock, and Playback/Edit mode toggle.
 2. **`InitializingScreen.tsx`**: Branded initial load screen displaying the Project X logo with subtle animation.
 3. **`YoutubeSourceInput.tsx`**: YouTube URL/ID input with live player connection indicator and automatic ID extraction using `UI_TOKENS.input`.
 4. **`ScriptManagementBar.tsx`**: Screenplay status banner showing loaded line count with an "Edit Raw" action button styled with `UI_TOKENS`.
@@ -242,7 +242,7 @@ The UI layer coordinates video playback, real-time highlighting, user interactio
 16. **`LibraryModal.tsx`**: Desktop library catalogue modal featuring real-time search, category navigation, sorting (Latest, Oldest, A-Z), section badges, and featured curations.
 17. **`MobileLibraryModal.tsx`**: Mobile/tablet bottom-sheet drawer providing a touch-friendly category filter and search interface.
 18. **`StagingModal.tsx`**: Monospace overlay displaying hidden camera, lighting, or lookbook directives from `[[STAGING]]` blocks.
-19. **`AppInfoModal.tsx`**: Desktop application info and about dialog displaying dynamic versioning from `metadata.json`, author attribution for Taruma Sakti ([Linktree](https://linktr.ee/tarumainfo)), 2x2 resource badge grid, and keyboard shortcuts cheat sheet.
+19. **`AppInfoModal.tsx`**: Desktop application info and about dialog displaying dynamic versioning from `metadata.json`, author attribution for mylife-as-miles, documentation and source code repository links, and keyboard shortcuts cheat sheet.
 20. **`MobileColorModal.tsx`**: Mobile/tablet bottom-sheet drawer providing a thumb-friendly 4-segment App Shell switcher and 6 compact screenplay preset cards.
 
 ### Type Definitions & Data Schemas

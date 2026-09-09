@@ -77,7 +77,7 @@ When modifying application state, storage keys, or external fetching:
 ## 6. Responsive UI & Modal Architecture
 
 - **Desktop vs. Mobile Modals**: Desktop browsing uses the full-featured `src/components/LibraryModal.tsx` with search, sorting, and category sidebar. Mobile devices use the touch-optimized bottom-sheet drawer `src/components/MobileLibraryModal.tsx`. Both share state and are mutually exclusive based on viewport width (`lg` breakpoint).
-- **Header Adaptations**: On mobile screens, hide width selectors and edit toggles to prevent crowding, surfacing direct Library access and the Ko-fi support button.
+- **Header Adaptations**: On mobile screens, hide width selectors and edit toggles to prevent crowding, surfacing direct Library access.
 
 ## 7. Adding & Managing Catalogue Examples
 

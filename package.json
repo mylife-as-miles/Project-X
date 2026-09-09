@@ -3,6 +3,10 @@
   "private": true,
   "version": "2.2.0",
   "author": "mylife-as-miles",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mylife-as-miles/Project-X.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",

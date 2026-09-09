@@ -28,7 +28,6 @@ For exact deployment commands, IAM roles, environment variables, Secret Manager 
 - `.env.example`
 - `.gitattributes`
 - `.gitignore`
-- `CHANGELOG.md`
 - `Dockerfile`
 - `README.md`
 - `api/[...path].ts`
@@ -36,10 +35,6 @@ For exact deployment commands, IAM roles, environment variables, Secret Manager 
 - `docs/DEPLOYMENT.md`
 - `docs/MIGRATION_VERIFICATION.md`
 - `docs/TECH_STACK.md`
-- `docs/release_notes/v2.0.0.md`
-- `docs/release_notes/v2.1.0.md`
-- `docs/release_notes/v2.1.1.md`
-- `docs/release_notes/v2.2.0.md`
 - `package-lock.json`
 - `package.json`
 - `scripts/build-server.mjs`

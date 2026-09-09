@@ -5,9 +5,7 @@ import {
   ExternalLink, 
   Github, 
   BookOpen, 
-  Coffee, 
   Keyboard, 
-  FileCode2, 
   ShieldCheck, 
   Layers
 } from 'lucide-react';
@@ -27,41 +25,28 @@ export function AppInfoModal({ isOpen, onClose }: AppInfoModalProps) {
 
   if (!isOpen) return null;
 
-  const version = metadata?.version || '2.1.1';
+  const version = metadata?.version || '2.2.0';
   const appName = metadata?.name || 'Project X';
-  const author = (metadata as Record<string, unknown>)?.author as string || 'Taruma Sakti';
-  const authorUrl = (metadata as Record<string, unknown>)?.authorUrl as string || 'https://linktr.ee/tarumainfo';
+  const author = (metadata as Record<string, unknown>)?.author as string || 'mylife-as-miles';
+  const authorUrl = (metadata as Record<string, unknown>)?.authorUrl as string || 'https://github.com/mylife-as-miles';
+  const repoUrl = (metadata as Record<string, unknown>)?.repository as string || 'https://github.com/mylife-as-miles/Project-X';
   const description = metadata?.description || 
     'Project X bridges the gap between scripts and AI video generation with real-time synchronization, staging blocks, and precision timing controls.';
 
   const docLinks = [
     {
       label: 'GitHub Repository',
-      url: 'https://github.com/mylife-as-miles/Project-X',
+      url: repoUrl,
       icon: Github,
       tag: 'Source',
       color: 'hover:border-border-main hover:bg-surface-subtle text-text-main',
     },
     {
       label: 'Documentation & Guide',
-      url: 'https://github.com/mylife-as-miles/Project-X#readme',
+      url: `${repoUrl}#readme`,
       icon: BookOpen,
       tag: 'Docs',
       color: 'hover:border-blue-300 hover:bg-blue-50/50 text-blue-700',
-    },
-    {
-      label: 'Release Notes (Changelog)',
-      url: 'https://github.com/mylife-as-miles/Project-X/blob/main/CHANGELOG.md',
-      icon: FileCode2,
-      tag: `v${version}`,
-      color: 'hover:border-purple-300 hover:bg-purple-50/50 text-purple-700',
-    },
-    {
-      label: 'Support on Ko-fi',
-      url: 'https://ko-fi.com/tarumainfo',
-      icon: Coffee,
-      tag: 'Support',
-      color: 'hover:border-[#FF5E5B]/40 hover:bg-[#FF5E5B]/10 text-[#FF5E5B]',
     },
   ];
 

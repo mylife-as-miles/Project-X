@@ -190,7 +190,6 @@ For a complete and up-to-date list of all available Project X projects, release 
 - **Contextual Section Badges**: Displays source category badges on cards in aggregated views ("All Works", "Featured Works") and suppresses them within category-specific views.
 - **Sorting Controls**: Toggle lists by "Latest" (newest release date), "Oldest", or "A-Z" alphabetical order. Inactive/draft scripts are automatically placed at the bottom.
 - **Dual Modal Architecture**: Full modal dialog on desktop viewports (`LibraryModal`), touch-friendly bottom-sheet drawer on mobile viewports (`MobileLibraryModal`).
-- **Community Support**: Direct Ko-fi donation link (`https://ko-fi.com/tarumainfo`) integrated into desktop and mobile headers.
 
 ---
 
@@ -199,8 +198,8 @@ For a complete and up-to-date list of all available Project X projects, release 
 ### Desktop App Info Modal (`AppInfoModal`)
 Accessible via the `i` (Info) icon button in the desktop header toolbar:
 - **Dynamic Version & Metadata**: Automatically loads current version (`v2.2.0`), app title, and description directly from `metadata.json`.
-- **Author Attribution**: Features creator credit for **Taruma Sakti** in header and footer linking directly to [Linktree](https://linktr.ee/tarumainfo).
-- **Interactive Resource Grid**: 2x2 resource links for GitHub Repository, Documentation / Guide, Release Notes (Changelog), and Ko-fi Support.
+- **Author Attribution**: Features creator credit for **mylife-as-miles** in header and footer linking directly to the GitHub profile (`https://github.com/mylife-as-miles`).
+- **Interactive Resource Grid**: Resource links for GitHub Repository and Documentation / Guide.
 - **MIT License**: License status indicator.
 
 ### Global Keyboard Shortcuts & Modal Dismissal

@@ -2,8 +2,9 @@
   "name": "Project X",
   "description": "Project X bridges the gap between scripts and AI video generation with real-time synchronization, staging blocks, and precision timing controls.",
   "version": "2.2.0",
-  "author": "Taruma Sakti",
-  "authorUrl": "https://linktr.ee/tarumainfo",
+  "author": "mylife-as-miles",
+  "authorUrl": "https://github.com/mylife-as-miles",
+  "repository": "https://github.com/mylife-as-miles/Project-X",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -84,16 +84,6 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           >
             <Book size={12} /> <span className="hidden xl:inline">Library</span>
           </button>
-
-          <a
-            href="https://ko-fi.com/tarumainfo"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Support on Ko-fi"
-            className={UI_TOKENS.button.supportPill}
-          >
-            <Coffee size={12} /> <span className="hidden xl:inline">Support</span>
-          </a>
         </div>
 
         <div className={UI_TOKENS.badge.currentTimePill}>
