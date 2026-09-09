@@ -4,8 +4,8 @@ import type { Cue, AnalysisSummary, GenerationComparison } from '../../src/types
 let client: ClickHouseClient | null = null;
 let isConnected = false;
 
-// In-memory fallback cache for resilience when ClickHouse is unavailable or offline
-const fallbackRuns: Array<{
+// Demo fixtures used strictly when DEMO_MODE=true
+const DEMO_SEEDED_RUNS: Array<{
   projectId: string;
   sceneId: string;
   generationNumber: number;
@@ -34,6 +34,17 @@ const fallbackRuns: Array<{
   }
 ];
 
+// Live in-memory runs created during the current active session (e.g. for testing or temporary runs)
+const liveSessionRuns: Array<{
+  projectId: string;
+  sceneId: string;
+  generationNumber: number;
+  overallScore: number;
+  createdAt: string;
+  categoryScores: Record<string, number>;
+  cues: any[];
+}> = [];
+
 export function getClickHouseClient(): ClickHouseClient | null {
   if (client) return client;
 
@@ -42,7 +53,7 @@ export function getClickHouseClient(): ClickHouseClient | null {
   const password = process.env.CLICKHOUSE_PASSWORD || '';
   const database = process.env.CLICKHOUSE_DATABASE || 'default';
 
-  if (!host) {
+  if (!host || host.trim().length === 0) {
     return null;
   }
 
@@ -56,7 +67,7 @@ export function getClickHouseClient(): ClickHouseClient | null {
     });
     return client;
   } catch (err) {
-    console.warn('[ClickHouse] Initialization warning, using resilient fallback:', err);
+    console.warn('[ClickHouse] Initialization error:', err);
     return null;
   }
 }
@@ -114,7 +125,7 @@ export async function initClickHouseSchema(): Promise<boolean> {
     console.log('[ClickHouse] Schema initialized successfully.');
     return true;
   } catch (error) {
-    console.warn('[ClickHouse] Connection or schema setup error, running in resilient fallback mode:', error);
+    console.warn('[ClickHouse] Connection or schema setup error:', error);
     isConnected = false;
     return false;
   }
@@ -130,16 +141,15 @@ export async function persistAnalysisToClickHouse(params: {
   videoModel?: string;
   summary: AnalysisSummary;
   cues: Cue[];
-}): Promise<{ success: boolean; message: string }> {
+}): Promise<{ success: boolean; message: string; provider: string }> {
   const ch = getClickHouseClient();
-
-  // Always update in-memory cache for cross-generation intelligence
   const catScores: Record<string, number> = {};
   for (const [cat, data] of Object.entries(params.summary.categoryScores)) {
     catScores[cat] = data.score;
   }
 
-  fallbackRuns.push({
+  // Record into active session cache
+  liveSessionRuns.push({
     projectId: params.projectId,
     sceneId: params.sceneId,
     generationNumber: params.generationNumber,
@@ -149,10 +159,14 @@ export async function persistAnalysisToClickHouse(params: {
     cues: params.cues,
   });
 
+  const videoProvider = params.videoProvider || 'unknown';
+  const videoModel = params.videoModel || 'unknown';
+
   if (!ch) {
     return { 
       success: false, 
-      message: 'ClickHouse host not configured. Saved to local production intelligence cache.' 
+      message: 'ClickHouse is not connected. Generation run recorded in session memory only.',
+      provider: 'Disconnected'
     };
   }
 
@@ -166,8 +180,8 @@ export async function persistAnalysisToClickHouse(params: {
         scene_id: params.sceneId,
         generation_number: params.generationNumber,
         video_id: params.videoId,
-        video_provider: params.videoProvider || 'Google Vertex / Veo',
-        video_model: params.videoModel || 'veo-2.0',
+        video_provider: videoProvider,
+        video_model: videoModel,
         overall_score: params.summary.overallFidelityScore,
         category_scores: JSON.stringify(catScores),
         critical_failures_count: params.summary.criticalFailures.length,
@@ -201,14 +215,35 @@ export async function persistAnalysisToClickHouse(params: {
       });
     }
 
-    return { success: true, message: 'Successfully persisted to ClickHouse Cloud.' };
+    return { 
+      success: true, 
+      message: 'Successfully persisted to ClickHouse Cloud.',
+      provider: 'ClickHouse Cloud'
+    };
   } catch (err: any) {
     console.warn('[ClickHouse] Persistence warning:', err?.message || err);
-    return { success: false, message: 'Analysis complete. History sync failed (ClickHouse offline).' };
+    return { 
+      success: false, 
+      message: 'Analysis complete. History sync failed (ClickHouse offline).',
+      provider: 'ClickHouse Error'
+    };
   }
 }
 
 export async function getSceneHistory(projectId: string, sceneId: string): Promise<GenerationComparison> {
+  const isDemoMode = process.env.DEMO_MODE === 'true';
+
+  // DEMO MODE: explicitly return seeded benchmark fixture
+  if (isDemoMode) {
+    const demoRuns = DEMO_SEEDED_RUNS.filter(r => r.projectId === projectId && r.sceneId === sceneId);
+    if (demoRuns.length > 0) {
+      const comp = analyzeComparison(projectId, sceneId, demoRuns);
+      comp.narrative = `Demo fixture history: Attempt 1 (61%) → Attempt 2 (78%). Real ClickHouse tracking active when connected.`;
+      return comp;
+    }
+  }
+
+  // PRODUCTION MODE:
   const ch = getClickHouseClient();
 
   if (ch) {
@@ -236,7 +271,7 @@ export async function getSceneHistory(projectId: string, sceneId: string): Promi
           try {
             categoryScores = JSON.parse(r.cat_scores_json);
           } catch {
-            // fallback
+            categoryScores = {};
           }
           return {
             generationNumber: Number(r.generation_number),
@@ -247,24 +282,47 @@ export async function getSceneHistory(projectId: string, sceneId: string): Promi
         });
 
         return analyzeComparison(projectId, sceneId, runs);
+      } else {
+        return {
+          projectId,
+          sceneId,
+          runs: [],
+          improvements: [],
+          regressions: [],
+          narrative: 'No previous generation analyses.',
+        };
       }
     } catch (err) {
-      console.warn('[ClickHouse] Query error, falling back to local intelligence cache:', err);
+      console.warn('[ClickHouse] Query error:', err);
+      return {
+        projectId,
+        sceneId,
+        runs: [],
+        improvements: [],
+        regressions: [],
+        narrative: 'History unavailable — ClickHouse query failed.',
+      };
     }
   }
 
-  // Fallback to local intelligence cache
-  const runs = fallbackRuns
+  // If live session runs exist in memory (e.g. from tests or current active test session)
+  const matchingSessionRuns = liveSessionRuns
     .filter(r => r.projectId === projectId && r.sceneId === sceneId)
-    .sort((a, b) => a.generationNumber - b.generationNumber)
-    .map(r => ({
-      generationNumber: r.generationNumber,
-      overallScore: r.overallScore,
-      createdAt: r.createdAt,
-      categoryScores: r.categoryScores,
-    }));
+    .sort((a, b) => a.generationNumber - b.generationNumber);
 
-  return analyzeComparison(projectId, sceneId, runs);
+  if (matchingSessionRuns.length > 0) {
+    return analyzeComparison(projectId, sceneId, matchingSessionRuns);
+  }
+
+  // ClickHouse is not connected and no live session records exist
+  return {
+    projectId,
+    sceneId,
+    runs: [],
+    improvements: [],
+    regressions: [],
+    narrative: 'History unavailable — ClickHouse is not connected.',
+  };
 }
 
 function analyzeComparison(
@@ -279,7 +337,7 @@ function analyzeComparison(
       runs: [],
       improvements: [],
       regressions: [],
-      narrative: 'No prior generation attempts logged yet for this scene.',
+      narrative: 'No previous generation analyses.',
     };
   }
 

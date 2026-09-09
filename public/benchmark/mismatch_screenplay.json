@@ -1,0 +1,7 @@
+{
+  "sceneId": "scene_mismatch_benchmark",
+  "title": "Benchmark Mismatch Test (Real Video)",
+  "videoSource": "/benchmark/mismatch_test.mp4",
+  "scriptText": "[[STAGING]]\n[[INTENT]]\nA dramatic cinematic thriller sequence where a lone operative picks up an encrypted briefcase on a dimly lit street corner while the camera pushes in dramatically.\n[[/INTENT]]\n[[LOGIC]]\nStrict camera continuity. Maintain forward dolly translation on character approach. Prop permanence for briefcase.\n[[/LOGIC]]\n[[AESTHETIC]]\n35mm film stock, high contrast chiaroscuro, amber tungsten practicals with deep indigo shadows.\n[[/AESTHETIC]]\n[[OPENING]]\nMedium-wide establishing shot of an urban crosswalk under streetlamps.\n[[/OPENING]]\n[[/STAGING]]\n\n[<BRIEF>]\n[CAM 01] Forward camera dolly-in onto subject -> [ACT] Operative reaches down and picks up metallic briefcase -> Operative says {The drop is secure.} -> <Heavy metallic latch click>\n[CAM 02] Extreme close-up on operative eyes -> [ACT] Operative glances nervously over right shoulder -> <Low tension bass drone>\n[</BRIEF>]\n",
+  "cues": []
+}

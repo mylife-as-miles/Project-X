@@ -2,9 +2,11 @@ import type {
   Cue, 
   AnalysisSummary, 
   RegenerationRecommendation, 
-  GenerationComparison 
+  GenerationComparison,
+  RuntimeSourceIndicators,
+  VideoValidationInfo
 } from '../types/script';
-import { parseScriptToBeats, extractStagingContext } from './scriptBeatParser';
+import { parseScriptToBeats } from './scriptBeatParser';
 import { generateAnalysisSummary } from './scoringEngine';
 import { CUE_COLOR_DEFINITIONS } from '../styles/tokens/cues';
 
@@ -14,12 +16,17 @@ export interface RunAnalysisResponse {
   sceneId: string;
   generationNumber: number;
   videoSource: string;
+  videoValidation?: VideoValidationInfo;
   cues: Cue[];
   summary: AnalysisSummary;
   recommendations: RegenerationRecommendation[];
   persistedToClickHouse: boolean;
+  clickhouseMessage?: string;
   artifactUrl: string;
+  artifactStorageProvider?: string;
   provider: string;
+  agentStack?: string;
+  runtimeSource?: RuntimeSourceIndicators;
 }
 
 export async function runAgenticAnalysis(params: {
@@ -27,16 +34,16 @@ export async function runAgenticAnalysis(params: {
   videoSource: string;
   sceneId?: string;
   generationNumber?: number;
+  videoProvider?: string;
+  videoModel?: string;
   onProgress?: (stage: string, step: number, total: number) => void;
 }): Promise<RunAnalysisResponse> {
   const updateProgress = params.onProgress || (() => {});
 
-  // Step 1: Notify progress
   updateProgress('Preparing screenplay and video context...', 1, 6);
 
   try {
-    // Attempt real server API call
-    updateProgress('Transmitting to Gemini Director Agent...', 2, 6);
+    updateProgress('Transmitting to Google Gen AI Director Agent...', 2, 6);
     const response = await fetch('/api/analysis/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -44,18 +51,77 @@ export async function runAgenticAnalysis(params: {
     });
 
     if (response.ok) {
-      updateProgress('Receiving multimodal QA alignment...', 4, 6);
+      updateProgress('Receiving multimodal video QA alignment...', 4, 6);
       const data: RunAnalysisResponse = await response.json();
-      updateProgress('Persisting production intelligence to ClickHouse & Cloud Storage...', 5, 6);
+      updateProgress('Persisting evaluation to ClickHouse & Cloud Storage...', 5, 6);
       updateProgress('Analysis complete.', 6, 6);
       return data;
+    } else {
+      const errJson = await response.json().catch(() => ({}));
+      throw new Error(errJson.message || errJson.error || `Server responded with ${response.status}`);
     }
-  } catch (error) {
-    console.warn('[apiClient] Server API unavailable, running client-side resilient director engine:', error);
-  }
+  } catch (error: any) {
+    console.warn('[apiClient] Server API error:', error);
+    updateProgress('Live analysis error encountered.', 6, 6);
 
-  // Resilient Client-Side Director Pipeline (guarantees seamless hackathon demo)
-  return runClientDirectorPipeline(params, updateProgress);
+    // In LIVE mode, NEVER fabricate fake footage observations!
+    // Return a truthful uncertain response detailing why live analysis could not complete.
+    const beats = parseScriptToBeats(params.scriptText);
+    const sceneId = params.sceneId || 'scene_frequency';
+    const genNum = params.generationNumber || 3;
+
+    const cues: Cue[] = beats.slice(0, 15).map((beat, i) => {
+      const def = CUE_COLOR_DEFINITIONS.find(c => c.type.toLowerCase() === beat.type.toLowerCase());
+      return {
+        id: `cue-uncertain-${i + 1}`,
+        type: beat.type,
+        selectedText: beat.sourceText,
+        startIndex: beat.startIndex,
+        endIndex: beat.endIndex,
+        startTime: i * 2.5,
+        endTime: (i + 1) * 2.5,
+        colorClass: def ? def.class : 'bg-slate-400/50',
+        adherenceScore: 0,
+        status: 'uncertain',
+        expected: beat.sourceText,
+        observed: 'Footage observation unavailable — Gemini multimodal analysis did not run.',
+        explanation: error?.message || 'Server API unreachable or video analysis failed.',
+        failureReason: error?.message || 'Server API unreachable',
+        confidence: 0,
+        severity: 'info',
+        beatId: beat.id,
+      };
+    });
+
+    const summary = generateAnalysisSummary(cues);
+    summary.runtimeSource = {
+      analysis: `Gemini analysis failed: ${error?.message || 'Server API unreachable'}`,
+      clickhouse: 'ClickHouse unavailable',
+      storage: 'Local development artifact',
+      mode: 'live',
+    };
+
+    return {
+      runId: `run-err-${Date.now()}`,
+      projectId: 'project-x',
+      sceneId,
+      generationNumber: genNum,
+      videoSource: params.videoSource,
+      videoValidation: {
+        attached: false,
+        mimeType: 'none',
+        sourceType: 'none',
+        error: error?.message || 'API unreachable',
+      },
+      cues,
+      summary,
+      recommendations: [],
+      persistedToClickHouse: false,
+      artifactUrl: '',
+      provider: `Gemini analysis failed (${error?.message || 'API unreachable'})`,
+      runtimeSource: summary.runtimeSource,
+    };
+  }
 }
 
 export async function requestPromptFix(params: {
@@ -63,7 +129,7 @@ export async function requestPromptFix(params: {
   staging?: any;
 }): Promise<RegenerationRecommendation | null> {
   try {
-    const res = await fetch('/api/analysis/regenerate', {
+    const res = await fetch('/api/analysis/regenerate-prompt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
@@ -73,10 +139,10 @@ export async function requestPromptFix(params: {
       return data.recommendation;
     }
   } catch (err) {
-    console.warn('[apiClient] Server regenerate error, using local generator:', err);
+    console.warn('[apiClient] Server regenerate error:', err);
   }
 
-  // Fallback regeneration logic
+  // Fallback regeneration prompt template if server offline
   const cue = params.cue;
   let revisedPrompt = '';
   let cameraCorrections = '';
@@ -119,176 +185,24 @@ export async function requestPromptFix(params: {
   };
 }
 
-export async function fetchSceneHistory(sceneId: string): Promise<GenerationComparison> {
+export async function fetchSceneHistory(sceneId: string, projectId: string = 'project-x'): Promise<GenerationComparison> {
   try {
-    const res = await fetch(`/api/analysis/history/${encodeURIComponent(sceneId)}`);
+    const res = await fetch(`/api/analysis/history/${encodeURIComponent(projectId)}/${encodeURIComponent(sceneId)}`);
     if (res.ok) {
       return await res.json();
     }
   } catch (err) {
-    console.warn('[apiClient] Fetch history fallback:', err);
+    console.warn('[apiClient] Fetch history error:', err);
   }
 
+  // Truthful response when ClickHouse is not connected:
   return {
-    projectId: 'project-x',
+    projectId,
     sceneId,
-    runs: [
-      {
-        generationNumber: 1,
-        overallScore: 61,
-        createdAt: '2026-08-10T14:20:00Z',
-        categoryScores: { dialogue: 94, action: 58, camera: 42, shot: 60, audio: 50, vfx: 75, environment: 80, transition: 85 },
-      },
-      {
-        generationNumber: 2,
-        overallScore: 78,
-        createdAt: '2026-08-25T11:15:00Z',
-        categoryScores: { dialogue: 95, action: 76, camera: 68, shot: 74, audio: 70, vfx: 82, environment: 88, transition: 90 },
-      },
-      {
-        generationNumber: 3,
-        overallScore: 91,
-        createdAt: new Date().toISOString(),
-        categoryScores: { dialogue: 98, action: 89, camera: 93, shot: 90, audio: 85, vfx: 92, environment: 94, transition: 96 },
-      }
-    ],
-    improvements: [
-      'CAMERA: 42% → 68% → 93% (+51%)',
-      'ACTION: 58% → 76% → 89% (+31%)',
-      'AUDIO: 50% → 70% → 85% (+35%)',
-    ],
+    runs: [],
+    improvements: [],
     regressions: [],
-    narrative: 'Prompt iteration in Attempt 3 resolved the missing physical dolly movement and corrected tactile hand contact on the manuscript, increasing overall fidelity to 91%.',
-  };
-}
-
-async function runClientDirectorPipeline(
-  params: {
-    scriptText: string;
-    videoSource: string;
-    sceneId?: string;
-    generationNumber?: number;
-  },
-  updateProgress: (stage: string, step: number, total: number) => void
-): Promise<RunAnalysisResponse> {
-  const sceneId = params.sceneId || 'scene_frequency';
-  const genNum = params.generationNumber || 3;
-
-  updateProgress('Parsing screenplay and Auteur staging directives...', 2, 6);
-  await new Promise(r => setTimeout(r, 450));
-  const beats = parseScriptToBeats(params.scriptText);
-  const staging = extractStagingContext(params.scriptText);
-
-  updateProgress('Evaluating video composition against expected beats...', 3, 6);
-  await new Promise(r => setTimeout(r, 600));
-
-  const totalBeats = Math.max(1, beats.length);
-  const estimatedDuration = Math.max(12, Math.min(60, totalBeats * 2.2));
-
-  const cues: Cue[] = beats.map((beat, i) => {
-    const fractionStart = i / totalBeats;
-    const fractionEnd = (i + 1) / totalBeats;
-    const startTime = Number((fractionStart * estimatedDuration).toFixed(2));
-    const endTime = Number((fractionEnd * estimatedDuration).toFixed(2));
-
-    const isCameraDivergence = beat.type === 'camera' && (i % 4 === 1 || beat.sourceText.toLowerCase().includes('dolly'));
-    const isActionMiss = beat.type === 'action' && (i % 6 === 2 || beat.sourceText.toLowerCase().includes('slap') || beat.sourceText.toLowerCase().includes('snap'));
-    const isAudioDelay = beat.type === 'audio' && (i % 5 === 3);
-
-    let adherenceScore = 92;
-    let status: 'matched' | 'partial' | 'missed' = 'matched';
-    let expected = beat.sourceText;
-    let observed = 'Visually rendered in accordance with screenplay instructions.';
-    let explanation = 'High adherence to spatial blocking and directorial intent.';
-    let failureReason: string | undefined = undefined;
-    let severity: 'critical' | 'warning' | 'info' = 'info';
-
-    if (isCameraDivergence) {
-      adherenceScore = 42;
-      status = 'partial';
-      expected = beat.expectedCamera || beat.sourceText;
-      observed = 'Static medium-wide lockoff with subtle floating handheld drift instead of motivated physical dolly.';
-      explanation = 'The requested camera movement failed to execute across the shot timeline.';
-      failureReason = 'Camera movement absent: Scene remains static rather than executing forward camera dolly.';
-      severity = 'critical';
-    } else if (isActionMiss) {
-      adherenceScore = 22;
-      status = 'missed';
-      expected = beat.expectedAction || beat.sourceText;
-      observed = 'Character remains stationary with lowered arms without executing paper snap contact against trousers.';
-      explanation = 'Physical micro-action omitted by the video generation model.';
-      failureReason = 'Action omitted: Subject does not perform the required tactile object interaction.';
-      severity = 'critical';
-    } else if (isAudioDelay) {
-      adherenceScore = 68;
-      status = 'partial';
-      expected = beat.expectedAudio || beat.sourceText;
-      observed = 'Acoustic reverb present but mechanical rhythm desynchronized from visual pendulum motion.';
-      explanation = 'Audio event desynchronized from physical pendulum contact.';
-      failureReason = 'Timing offset: SFX event lagged behind the visual contact point.';
-      severity = 'warning';
-    } else if (beat.type === 'dialogue') {
-      adherenceScore = 96;
-      status = 'matched';
-      observed = `Actor lip movement matches speech lines: "${beat.expectedDialogue || beat.sourceText}".`;
-      explanation = 'Dialogue cadence and actor speech delivery matches written lines.';
-    }
-
-    const def = CUE_COLOR_DEFINITIONS.find(c => c.type.toLowerCase() === beat.type.toLowerCase());
-    const colorClass = def ? def.class : 'bg-blue-400/50';
-
-    return {
-      id: `auto-cue-${i + 1}`,
-      type: beat.type,
-      selectedText: beat.sourceText,
-      startIndex: beat.startIndex,
-      endIndex: beat.endIndex,
-      startTime,
-      endTime,
-      colorClass,
-      speaker: beat.type === 'dialogue' && beat.sourceText.includes(':') ? beat.sourceText.split(':')[0] : null,
-      adherenceScore,
-      status,
-      expected,
-      observed,
-      explanation,
-      failureReason,
-      confidence: 0.88,
-      severity,
-      beatId: beat.id,
-      suggestedFix: failureReason ? 'Specify camera rig translation coordinates in revised generation prompt.' : undefined,
-    };
-  });
-
-  updateProgress('Scoring fidelity across 8 cinematic categories...', 4, 6);
-  await new Promise(r => setTimeout(r, 450));
-  const summary = generateAnalysisSummary(cues);
-
-  updateProgress('Saving production intelligence to ClickHouse & Cloud Storage...', 5, 6);
-  await new Promise(r => setTimeout(r, 400));
-
-  const recs: RegenerationRecommendation[] = [];
-  for (const fail of summary.criticalFailures.slice(0, 3)) {
-    const cue = cues.find(c => c.id === fail.cueId);
-    if (cue) {
-      const fix = await requestPromptFix({ cue, staging });
-      if (fix) recs.push(fix);
-    }
-  }
-
-  updateProgress('Analysis complete.', 6, 6);
-
-  return {
-    runId: `run-${Date.now()}`,
-    projectId: 'project-x',
-    sceneId,
-    generationNumber: genNum,
-    videoSource: params.videoSource,
-    cues,
-    summary,
-    recommendations: recs,
-    persistedToClickHouse: true,
-    artifactUrl: `gs://project-x-analysis/${sceneId}/run_${genNum}.json`,
-    provider: 'Gemini Director Engine (Autonomous Evaluator)',
+    narrative: 'History unavailable — ClickHouse is not connected.',
+    connected: false,
   };
 }

@@ -10,40 +10,15 @@ export type CueCategoryType =
   | 'transition'
   | 'environment';
 
-export interface AnalysisCue {
-  id: string;
-  type: string;
-  selectedText: string;
-  startIndex: number;
-  endIndex: number;
-  startTime: number;
-  endTime: number;
-  colorClass?: string;
-  speaker?: string | null;
-
-  // QA & Evaluation Metadata
-  adherenceScore?: number; // 0-100
-  status?: CueStatus;
-  expected?: string;
-  observed?: string;
-  explanation?: string;
-  failureReason?: string;
-  confidence?: number;
-  severity?: 'critical' | 'warning' | 'info';
-  suggestedFix?: string;
-  beatId?: string;
-}
-
 export interface ScriptBeat {
   id: string;
   type: CueCategoryType;
   sourceText: string;
   startIndex: number;
   endIndex: number;
+  expectedCamera?: string;
   expectedAction?: string;
   expectedDialogue?: string;
-  expectedCamera?: string;
-  expectedShot?: string;
   expectedAudio?: string;
   expectedVfx?: string;
   expectedEnvironment?: string;
@@ -52,21 +27,38 @@ export interface ScriptBeat {
 }
 
 export interface VideoObservation {
-  timestampStart: number;
-  timestampEnd: number;
-  charactersVisible: string[];
-  actionsObserved: string;
-  framingAndShot: string;
-  cameraMotion: string;
-  environmentAndLighting: string;
-  audioEvents: string;
-  vfxObserved: string;
+  timestamp: number;
+  visualSummary: string;
+  detectedSubject?: string;
+  cameraMovement?: string;
+  shotType?: string;
+  observedAction?: string;
+  observedAudio?: string;
+  lightingEnvironment?: string;
   confidence: number;
+}
+
+export interface AnalysisCue {
+  id: string;
+  beatId?: string;
+  type: CueCategoryType;
+  selectedText: string;
+  startTime: number;
+  endTime: number;
+  adherenceScore: number;
+  status: CueStatus;
+  expected: string;
+  observed: string;
+  explanation: string;
+  failureReason?: string;
+  confidence: number;
+  severity?: 'critical' | 'warning' | 'info';
+  suggestedFix?: string;
 }
 
 export interface FidelityCategoryScore {
   category: CueCategoryType;
-  score: number; // 0-100
+  score: number;
   count: number;
   matched: number;
   partial: number;
@@ -87,6 +79,22 @@ export interface CriticalFailure {
   suggestedFix?: string;
 }
 
+export interface RuntimeSourceIndicators {
+  analysis: string;
+  clickhouse: string;
+  storage: string;
+  mode: 'live' | 'demo';
+}
+
+export interface VideoValidationInfo {
+  attached: boolean;
+  mimeType: string;
+  sourceType: string;
+  sizeBytes?: number;
+  uri?: string;
+  error?: string;
+}
+
 export interface AnalysisSummary {
   overallFidelityScore: number; // 0-100
   totalCuesAnalyzed: number;
@@ -97,6 +105,8 @@ export interface AnalysisSummary {
   categoryScores: Record<string, FidelityCategoryScore>;
   criticalFailures: CriticalFailure[];
   directorNotes?: string;
+  runtimeSource?: RuntimeSourceIndicators;
+  videoValidation?: VideoValidationInfo;
 }
 
 export interface RegenerationRecommendation {
@@ -136,6 +146,8 @@ export interface GenerationComparison {
   improvements: string[];
   regressions: string[];
   narrative: string;
+  connected?: boolean;
+  error?: string;
 }
 
 export interface AnalysisPipelineProgress {

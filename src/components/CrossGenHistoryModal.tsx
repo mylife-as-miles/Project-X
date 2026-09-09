@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, TrendingUp, History, Database, Cloud, CheckCircle2, ArrowRight } from 'lucide-react';
+import { X, TrendingUp, History, Database, Cloud, CheckCircle2, ArrowRight, AlertCircle } from 'lucide-react';
 import type { GenerationComparison } from '../types/script';
 import { UI_TOKENS } from '../styles/tokens/ui';
 import { cn } from '../lib/utils';
@@ -18,6 +18,9 @@ export const CrossGenHistoryModal: React.FC<CrossGenHistoryModalProps> = ({
   isLoading = false,
 }) => {
   if (!isOpen) return null;
+
+  const isDisconnected = comparison?.connected === false || comparison?.narrative.includes('not connected');
+  const hasNoRecords = comparison && comparison.runs.length === 0 && !isDisconnected;
 
   return (
     <div className={UI_TOKENS.modal.overlayHighZ} onClick={onClose}>
@@ -55,6 +58,22 @@ export const CrossGenHistoryModal: React.FC<CrossGenHistoryModalProps> = ({
             <div className="py-16 text-center space-y-3">
               <Database className="animate-pulse mx-auto text-blue-500" size={28} />
               <p className="font-semibold text-text-main">Querying ClickHouse generation history...</p>
+            </div>
+          ) : isDisconnected ? (
+            <div className="py-12 px-6 rounded-2xl border border-amber-500/20 bg-amber-500/5 text-center space-y-3">
+              <AlertCircle size={32} className="mx-auto text-amber-500" />
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-text-main">History unavailable — ClickHouse is not connected</h3>
+                <p className="text-xs text-text-muted max-w-md mx-auto">
+                  ClickHouse Cloud credentials are not configured or the host is unreachable. Configure CLICKHOUSE_HOST, CLICKHOUSE_USER, and CLICKHOUSE_PASSWORD in your environment to persist multi-attempt analytics.
+                </p>
+              </div>
+            </div>
+          ) : hasNoRecords ? (
+            <div className="py-12 text-center text-text-muted space-y-2">
+              <History size={28} className="mx-auto text-text-faint" />
+              <p className="font-semibold text-text-main">No previous generation analyses.</p>
+              <p className="text-xs text-text-muted">Run an analysis with Gemini to record your first generation attempt in ClickHouse.</p>
             </div>
           ) : comparison && comparison.runs.length > 0 ? (
             <>
@@ -98,9 +117,9 @@ export const CrossGenHistoryModal: React.FC<CrossGenHistoryModalProps> = ({
                         {/* Category Snippets */}
                         <div className="grid grid-cols-2 gap-1.5 text-[10px]">
                           {Object.entries(run.categoryScores).slice(0, 4).map(([cat, score]) => (
-                            <div key={cat} className="flex justify-between p-1 rounded bg-surface-muted px-1.5">
-                              <span className="text-text-faint capitalize">{cat}</span>
-                              <span className="font-mono font-bold text-text-main">{score}%</span>
+                            <div key={cat} className="flex justify-between font-mono text-text-muted">
+                              <span className="capitalize">{cat}</span>
+                              <span className="font-bold text-text-main">{score}%</span>
                             </div>
                           ))}
                         </div>
@@ -110,12 +129,12 @@ export const CrossGenHistoryModal: React.FC<CrossGenHistoryModalProps> = ({
                 </div>
               </div>
 
-              {/* Gemini Narrative Analysis */}
-              <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/20 space-y-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-blue-500 flex items-center gap-1.5">
-                  <CheckCircle2 size={13} /> Gemini Cross-Generation Analysis
+              {/* Progression Narrative */}
+              <div className="p-4 rounded-xl bg-surface-muted border border-border-main space-y-1.5">
+                <span className="text-[10px] font-black uppercase tracking-widest text-text-faint">
+                  Gemini Director Narrative
                 </span>
-                <p className="text-xs text-text-main leading-relaxed">
+                <p className="text-xs text-text-main leading-relaxed font-sans">
                   {comparison.narrative}
                 </p>
               </div>
@@ -148,11 +167,7 @@ export const CrossGenHistoryModal: React.FC<CrossGenHistoryModalProps> = ({
                 </div>
               </div>
             </>
-          ) : (
-            <div className="py-12 text-center text-text-muted">
-              No generation history found yet. Run an analysis with Gemini to persist results.
-            </div>
-          )}
+          ) : null}
         </div>
 
         {/* Footer */}
