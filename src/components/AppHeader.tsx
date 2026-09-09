@@ -61,18 +61,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       )}
     >
       <div className="flex items-center gap-2 lg:gap-3">
-        <img
-          src="/PROJECT_X_TAG_B.png"
-          alt="Project X Logo"
-          referrerPolicy="no-referrer"
-          className="logo-light h-8 lg:h-9 w-auto object-contain selection:bg-transparent pointer-events-none"
-        />
-        <img
-          src="/PROJECT_X_TAG_WHITE.png"
-          alt="Project X Logo"
-          referrerPolicy="no-referrer"
-          className="logo-dark h-8 lg:h-9 w-auto object-contain selection:bg-transparent pointer-events-none"
-        />
+        <span className="text-2xl lg:text-3xl font-black tracking-tight text-text-main whitespace-nowrap" aria-label="Project X">PROJECT <span className="text-amber-500">X</span></span>
       </div>
 
       <div className="flex items-center gap-2 lg:gap-4">

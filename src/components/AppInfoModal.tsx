@@ -124,16 +124,7 @@ export function AppInfoModal({ isOpen, onClose }: AppInfoModalProps) {
           <div className="p-5 bg-surface-subtle border border-border-main rounded-2xl space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <img
-                  src="/PROJECT_X_TAG_B.png"
-                  alt="Project X Logo"
-                  className="logo-light h-6 w-auto object-contain pointer-events-none"
-                />
-                <img
-                  src="/PROJECT_X_TAG_WHITE.png"
-                  alt="Project X Logo"
-                  className="logo-dark h-6 w-auto object-contain pointer-events-none"
-                />
+                <span className="text-xl font-black tracking-tight text-text-main whitespace-nowrap" aria-label="Project X">PROJECT <span className="text-amber-500">X</span></span>
               </div>
               <div className="flex items-center gap-1.5 text-[10px] font-bold text-text-faint uppercase tracking-wider">
                 <ShieldCheck size={13} className="text-emerald-500" />
