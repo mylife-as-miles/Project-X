@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { GeminiDirectorAgent } from './gemini/directorAgent';
 import { getSceneHistory, getClickHouseClient } from './db/clickhouse';
 import { getGcsStorage } from './storage/gcs';
+import { version as adkVersion } from '@google/adk';
 
 export const apiRouter = Router();
 const directorAgent = new GeminiDirectorAgent();
@@ -9,16 +10,30 @@ const directorAgent = new GeminiDirectorAgent();
 apiRouter.get('/health', (req: Request, res: Response) => {
   const ch = getClickHouseClient();
   const gcs = getGcsStorage();
+  const useVertexAi = Boolean(process.env.GOOGLE_CLOUD_PROJECT || process.env.GOOGLE_APPLICATION_CREDENTIALS);
+  const vertexProject = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCS_PROJECT_ID || '';
+  const vertexLocation = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
   const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.length > 5);
   const isDemoMode = process.env.DEMO_MODE === 'true';
+
+  let geminiStatus = 'Unavailable (Credentials Missing)';
+  if (useVertexAi && vertexProject) {
+    geminiStatus = `Active (Google Cloud Vertex AI: ${vertexProject} in ${vertexLocation})`;
+  } else if (hasGeminiKey) {
+    geminiStatus = 'Active (Gemini Developer API)';
+  }
 
   res.json({
     status: 'ok',
     system: 'Project X — Agentic Script-to-Screen QA',
-    agentStack: 'Google Gen AI Director Agent (ADK Tool Pattern) on Gemini 2.5',
+    framework: '@google/adk',
+    adkVersion,
+    agent: 'project_x_director_agent',
+    agentStack: `Google Cloud Agent Development Kit (@google/adk v${adkVersion}) with Gemini 2.5 on ${useVertexAi ? 'Vertex AI' : 'Google GenAI'}`,
     mode: isDemoMode ? 'demo' : 'live',
     runtime: {
-      geminiMultimodal: hasGeminiKey ? 'Active (Live API)' : 'Unavailable (API Key Missing)',
+      googleAdk: `Active (@google/adk v${adkVersion} Director Agent)`,
+      geminiMultimodal: geminiStatus,
       clickhouse: ch ? 'Connected (Cloud)' : 'Unavailable (Disconnected)',
       googleCloudStorage: gcs ? 'Connected (GCS)' : 'Unavailable (Local Dev Cache)',
     },

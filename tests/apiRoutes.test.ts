@@ -34,7 +34,9 @@ describe('Production API Endpoints', () => {
     const data = await res.json();
     expect(data.status).toBe('ok');
     expect(data.system).toContain('Project X');
-    expect(data.agentStack).toContain('Google Gen AI Director Agent');
+    expect(data.framework).toBe('@google/adk');
+    expect(data.adkVersion).toBe('2.0.0');
+    expect(data.agentStack).toContain('@google/adk');
   });
 
   it('supports POST /api/analysis/run with scriptText validation', async () => {
@@ -97,5 +99,34 @@ describe('Production API Endpoints', () => {
     expect(data.projectId).toBe('project-x');
     expect(data.sceneId).toBe('scene_test_routes');
     expect(data.runs).toBeInstanceOf(Array);
+  });
+
+  it('verifies Vercel serverless catch-all handler preserves API subpaths', async () => {
+    const vercelApp = (await import('../api/index')).default;
+    expect(vercelApp).toBeDefined();
+
+    const vercelServer = vercelApp.listen(0);
+    const vercelPort = (vercelServer.address() as any).port;
+    const vUrl = `http://localhost:${vercelPort}`;
+
+    try {
+      // Test both preserved /api/health and stripped /health paths
+      const resWithApi = await fetch(`${vUrl}/api/health`);
+      expect(resWithApi.status).toBe(200);
+      const dataWithApi = await resWithApi.json();
+      expect(dataWithApi.framework).toBe('@google/adk');
+
+      const resStripped = await fetch(`${vUrl}/health`);
+      expect(resStripped.status).toBe(200);
+      const dataStripped = await resStripped.json();
+      expect(dataStripped.framework).toBe('@google/adk');
+
+      const resHistory = await fetch(`${vUrl}/api/analysis/history/project-x/scene_vercel`);
+      expect(resHistory.status).toBe(200);
+      const dataHistory = await resHistory.json();
+      expect(dataHistory.sceneId).toBe('scene_vercel');
+    } finally {
+      await new Promise<void>((resolve) => vercelServer.close(() => resolve()));
+    }
   });
 });
