@@ -1,4 +1,20 @@
 
+import type { 
+  CueStatus, 
+  CueCategoryType, 
+  ScriptBeat, 
+  VideoObservation, 
+  FidelityCategoryScore, 
+  CriticalFailure, 
+  AnalysisSummary, 
+  RegenerationRecommendation, 
+  AnalysisRun, 
+  GenerationComparison, 
+  AnalysisPipelineProgress 
+} from './analysis';
+
+export * from './analysis';
+
 export interface Cue {
   id: string;
   selectedText: string;
@@ -8,6 +24,19 @@ export interface Cue {
   endTime: number;
   colorClass?: string;
   type?: string;
+  speaker?: string | null;
+
+  // QA & Evaluation Metadata (Agentic Script-to-Screen QA)
+  adherenceScore?: number; // 0-100
+  status?: CueStatus;
+  expected?: string;
+  observed?: string;
+  explanation?: string;
+  failureReason?: string;
+  confidence?: number;
+  severity?: 'critical' | 'warning' | 'info';
+  suggestedFix?: string;
+  beatId?: string;
 }
 
 export interface TimingSettings {

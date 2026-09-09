@@ -101,18 +101,31 @@ export const TimelineCuesPanel: React.FC<TimelineCuesPanelProps> = ({
                     style={{ backgroundColor: `rgb(${themed.rgb})` }} 
                   />
                   <div className="flex flex-col flex-1 min-w-0">
-                    {cueType && (
-                      <span 
-                        className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md w-fit mb-1 border"
-                        style={{ 
-                          backgroundColor: `rgba(${themed.rgb}, 0.15)`,
-                          borderColor: `rgba(${themed.rgb}, 0.3)`,
-                          color: themed.textColorClass.includes('text-amber-100') ? '#b45309' : undefined
-                        }}
-                      >
-                        {cueType}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                      {cueType && (
+                        <span 
+                          className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md border"
+                          style={{ 
+                            backgroundColor: `rgba(${themed.rgb}, 0.15)`,
+                            borderColor: `rgba(${themed.rgb}, 0.3)`,
+                            color: themed.textColorClass.includes('text-amber-100') ? '#b45309' : undefined
+                          }}
+                        >
+                          {cueType}
+                        </span>
+                      )}
+                      {cue.status && (
+                        <span className={cn(
+                          "text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border",
+                          cue.status === 'matched' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' :
+                          cue.status === 'partial' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30' :
+                          cue.status === 'missed' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30' :
+                          'bg-slate-500/10 text-slate-500 border-slate-500/30'
+                        )}>
+                          {typeof cue.adherenceScore === 'number' ? `${cue.adherenceScore}% ` : ''}{cue.status}
+                        </span>
+                      )}
+                    </div>
                     <span className="text-sm font-bold text-text-body italic leading-tight break-words">"{cue.selectedText}"</span>
                     <div className="flex items-center gap-2 mt-1">
                       <span className={UI_TOKENS.badge.timeTag}>{cue.startTime.toFixed(1)}s</span>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Book, Coffee, Play, Edit2, Palette, Clock, FolderOpen, Download, Info, Sun, Moon, Sparkles } from 'lucide-react';
+import { Plus, Book, Coffee, Play, Edit2, Palette, Clock, FolderOpen, Download, Info, Sun, Moon, Sparkles, ShieldCheck, TrendingUp } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { UI_TOKENS } from '../styles/tokens/ui';
 import type { AppThemeMode, AppThemeCategory } from '../hooks/useAppShellTheme';
@@ -22,6 +22,11 @@ interface AppHeaderProps {
   themeMode?: AppThemeMode;
   effectiveThemeCategory?: AppThemeCategory;
   onCycleThemeMode?: () => void;
+  onAnalyzeWithGemini?: () => void;
+  isAnalyzing?: boolean;
+  overallFidelityScore?: number | null;
+  onOpenFidelityDashboard?: () => void;
+  onOpenHistory?: () => void;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -42,6 +47,11 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   themeMode = 'auto',
   effectiveThemeCategory = 'light',
   onCycleThemeMode,
+  onAnalyzeWithGemini,
+  isAnalyzing = false,
+  overallFidelityScore,
+  onOpenFidelityDashboard,
+  onOpenHistory,
 }) => {
   return (
     <header
@@ -101,6 +111,53 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           <span className="hidden xl:inline text-[10px] font-black text-text-faint uppercase tracking-widest">Current Time</span>
           <span className="text-base xl:text-lg font-mono font-bold text-btn-primary-text w-12 xl:w-16 text-right">{currentTime.toFixed(1)}s</span>
         </div>
+
+        {/* Primary Agentic QA Action: Analyze with Gemini */}
+        {onAnalyzeWithGemini && (
+          <button
+            onClick={onAnalyzeWithGemini}
+            disabled={isAnalyzing}
+            title="Autonomous Multimodal Quality Control via Gemini"
+            className={cn(
+              "flex items-center gap-1.5 lg:gap-2 px-2.5 lg:px-3.5 py-1.5 lg:py-2 rounded-xl text-[10px] lg:text-xs font-bold uppercase tracking-wider transition-all active:scale-95 shadow-md",
+              isAnalyzing
+                ? "bg-purple-600/60 text-white cursor-wait animate-pulse"
+                : "bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white hover:from-purple-500 hover:to-blue-500 shadow-purple-500/20"
+            )}
+          >
+            <Sparkles size={13} className={isAnalyzing ? "animate-spin" : ""} />
+            <span className="whitespace-nowrap">{isAnalyzing ? "Analyzing..." : "Analyze with Gemini"}</span>
+          </button>
+        )}
+
+        {/* Fidelity QA Score Pill */}
+        {typeof overallFidelityScore === 'number' && onOpenFidelityDashboard && (
+          <button
+            onClick={onOpenFidelityDashboard}
+            title="Open Script-to-Screen Fidelity Dashboard"
+            className={cn(
+              "hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition-all active:scale-95",
+              overallFidelityScore >= 85 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" :
+              overallFidelityScore >= 70 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30" :
+              "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30"
+            )}
+          >
+            <ShieldCheck size={13} />
+            <span>QA: {overallFidelityScore}%</span>
+          </button>
+        )}
+
+        {/* Cross-Gen History Button */}
+        {onOpenHistory && (
+          <button
+            onClick={onOpenHistory}
+            title="ClickHouse Cross-Generation Intelligence"
+            className={cn("hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest", UI_TOKENS.button.actionPill)}
+          >
+            <TrendingUp size={12} className="text-blue-500" />
+            <span>History</span>
+          </button>
+        )}
 
         <div className={UI_TOKENS.button.modeSwitchContainer}>
           <button

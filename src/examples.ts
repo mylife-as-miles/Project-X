@@ -18,6 +18,21 @@ export interface ExampleSection {
 
 export const EXAMPLE_SECTIONS: ExampleSection[] = [
   {
+    label: "Agentic QA Benchmark",
+    icon: "sparkles",
+    items: [
+      {
+        id: 'demo_frequency_qa',
+        title: '⚡ Frequency Over Force (Agentic QA Evaluated)',
+        path: '/examples/demo_frequency_qa.json',
+        description: 'Pre-evaluated benchmark scene with Gemini Director Agent. Features 108 aligned cues, 88% overall script fidelity, lighting/staging failure detections, and regeneration prompt recipes.',
+        releaseDate: '2026-09-09',
+        tags: ['agentic qa', 'gemini director', 'clickhouse', 'auteur script'],
+        featured: true
+      }
+    ]
+  },
+  {
     label: "AI Scenes",
     icon: "film",
     items: [

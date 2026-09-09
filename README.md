@@ -1,325 +1,212 @@
 <div align="center">
   <img src="public/PROJECT_X_TAG_B.png" alt="Project X Logo" height="80">
   
-  # Project X
+  # Project X — Autonomous Script-to-Screen Quality Control for AI Filmmaking
   
-  **Script-to-screen synchronization for AI filmmakers.**
-  
-  [![Live App](https://img.shields.io/badge/Live_App-Visit_Site-black?style=flat-square&logo=vercel)](https://project-x.vercel.app/)
-  
-  <p>
-    <strong>Sync scripts and screenplays with video. Evaluate AI-generated footage. Analyze script-to-screen fidelity.</strong>
-  </p>
+  **An agentic AI director and quality-control system that autonomously evaluates AI video generations against screenplays, scores fidelity, diagnoses failures, tracks cross-generation progress, and generates surgical prompt fixes.**
+
+  [![Agentic Cinema Hackathon](https://img.shields.io/badge/Agentic_Cinema-The_Blockbuster_Hackathon-amber?style=flat-square)](https://lablab.ai/event/agentic-cinema)
+  [![Gemini 2.5](https://img.shields.io/badge/Gemini_2.5-Multimodal_Director_Agent-blue?style=flat-square&logo=google)](https://ai.google.dev/)
+  [![ClickHouse Cloud](https://img.shields.io/badge/ClickHouse_Cloud-Production_Intelligence-orange?style=flat-square)](https://clickhouse.com/)
+  [![Google Cloud Storage](https://img.shields.io/badge/Google_Cloud_Storage-Artifact_Persistence-4285F4?style=flat-square&logo=googlecloud)](https://cloud.google.com/storage)
+  [![Tests](https://img.shields.io/badge/Tests-Vitest_100%25_Passing-brightgreen?style=flat-square)](https://vitest.dev/)
 </div>
 
 ---
 
-https://github.com/user-attachments/assets/e2469136-4224-4192-affc-d19d7e403f74
+## 🎬 Core Product Promise
 
-## 📖 Overview
+AI video generation is exploding, but professional AI filmmaking suffers from a massive bottleneck: **manual verification**. Creators generate tens or hundreds of video shots, then spend hours manually checking if characters performed the right actions, if props stayed consistent, if camera choreography respected the 180-degree axis, and if dialogue timing aligned with the screenplay.
 
-**Project X** is a tool that syncs scripts and screenplays with video content, letting you see which parts of your prompt appear on screen in real-time.
+**Project X transforms manual script-to-screen synchronization into a fully autonomous, agentic quality-control system.**
 
-Built for evaluating how AI video models visualize prompt instructions, it supports both traditional **Screenplay formatting** and high-precision, state-driven **Auteur Script formatting** with 5-part staging metadata. Project X helps you compare instructions against what was actually generated — essential for assessing prompt adherence and iterating on AI cinema projects.
-
-> **Note on Cue Creation**: Project X does not automatically extract or generate video sync cues for you. Cues must be mapped **manually** (by highlighting text in Edit Mode and setting timestamps) or generated externally using **multimodal AI models** (such as Gemini) that analyze video frames against script timecodes.
-
-### What It Does
-
-- **Script-to-Screen Tracking** — Highlights which parts of your script are playing in real-time
-- **Dual Script Workflows** — Seamlessly handles both human-readable screenplays and state-chained Auteur Scripts
-- **Color-Coded Cues** — 8 element types: dialogue, action, camera, shots, audio, VFX, transitions, environments
-- **Adherence Analysis** — Pinpoint missed prompt elements, camera drift, or continuity deviations against the generated video
-- **Timing Controls** — Adjustable buffers to fine-tune when highlights appear
-- **Portable** — JSON-based projects you can save, share, and version-control
+Give Project X a screenplay (traditional format or state-chained **Auteur Script**) and an AI-generated video (or YouTube / MP4 stream). The **Gemini Director Agent** autonomously:
+1. **Understands Screenplay Intent & Staging** — Extracts staging rules (`[[INTENT]]`, `[[LOGIC]]`, `[[AESTHETIC]]`) and temporal beats.
+2. **Inspects Video Multimodally** — Analyzes visual frames, timing, character orientation, props, camera movements, and audio cues.
+3. **Aligns Script Beats to Screen Timestamps** — Automatically matches cues with millisecond precision without manual timestamping.
+4. **Scores Script-to-Screen Fidelity** — Evaluates adherence across 8 weighted cinematic categories (Dialogue, Action, Camera, Shot, Audio, VFX, Transition, Environment).
+5. **Pinpoints Critical Failures** — Detects physical blocking errors, lighting drift, missing props, and timing anomalies.
+6. **Recommends Surgical Prompt Fixes** — Generates revised prompts with negative constraints and camera/action guardrails ready to paste into video generation models.
+7. **Tracks Multi-Attempt Progression in ClickHouse** — Records every generation run (Attempt 1 → Attempt 2 → Attempt 3), displaying score deltas and category improvements over time.
 
 ---
 
-## ✨ Features
+## 🏛️ System Architecture
 
-### Synchronization System
+```mermaid
+flowchart TD
+    subgraph Input["Screenplay & Video Input"]
+        SP["Screenplay / Auteur Script\n[[INTENT]], [[LOGIC]], [[AESTHETIC]], [<BRIEF>]"]
+        VD["AI Generated Video\n(YouTube / Local / MP4)"]
+    end
 
-| Feature | Description |
-|---------|-------------|
-| **Cue-Based Sync** | Link specific script segments to video timestamps |
-| **8 Cue Types** | Dialogue, Action, Camera, Shot, Audio, VFX, Transition, Environment |
-| **Auto-Scroll** | Script automatically follows dialogue during playback |
-| **Auto-Alignment** | Re-match cues when script text changes |
-| **Timing Buffers** | Adjustable before/after timing for each cue type |
+    subgraph Agent["Gemini Director Agent (Orchestrator)"]
+        GDA["GeminiDirectorAgent\n(@google/genai multimodal)"]
+        T1["Tool: parse_script"]
+        T2["Tool: analyze_video"]
+        T3["Tool: evaluate_adherence"]
+        T4["Tool: generate_regeneration_prompt"]
+        
+        GDA --> T1
+        GDA --> T2
+        GDA --> T3
+        GDA --> T4
+    end
 
-### Color-Coded Cue Types
+    subgraph Evaluation["Evaluation & Scoring Engine"]
+        SE["Deterministic Scoring Engine\nDialogue (1.2), Action (1.2), Camera (1.0)..."]
+        CF["Critical Failure Detector\nSeverity, Observed vs Expected, Drift ms"]
+        SE --> CF
+    end
 
-| Type | Color | Purpose |
-|------|-------|---------|
-| 🟡 Dialogue | Yellow | Character speech and conversations |
-| 🔵 Action | Blue | Physical actions and movements |
-| 🟢 Camera | Green | Camera movements and angles |
-| 🟣 Shot | Purple | Shot descriptions and framing |
-| 🟠 Audio | Orange | Sound effects and music cues |
-| 🔷 VFX | Cyan | Visual effects descriptions |
-| 🩷 Transition | Pink | Scene transitions |
-| ⚪ Environment | Slate | Setting and atmosphere descriptions |
+    subgraph Persistence["Cloud & Resilient Storage Layer"]
+        CH[("ClickHouse Cloud\ngeneration_runs\ncue_analysis")]
+        GCS[("Google Cloud Storage\nFull Run JSON Artifacts")]
+        CACHE[("Resilient Intelligence Cache\nIn-Memory / Local Cache Fallback")]
+    end
 
-https://github.com/user-attachments/assets/cf3a7fec-2a4b-48d8-9028-245eba49934c
+    subgraph Frontend["Project X UI Experience"]
+        FD["Fidelity QA Dashboard\nOverall Fidelity % & 8-Category Breakdown"]
+        TM["Timeline Cues Panel & Active Highlights\nEmerald (Matched), Amber (Partial), Rose (Missed)"]
+        RM["Regeneration Modal\nRevised Prompts, Negative Constraints, Guardrails"]
+        HM["Cross-Generation History Modal\nAttempt 1 → Attempt 2 → Attempt 3 Trends"]
+    end
 
-### Data Management
-
-- **Import/Export** — Save and load projects as JSON files
-- **Remote Sharing** — Share projects via URL using query parameters
-- **Raw Editing** — Direct access to screenplay text and cue data
-- **Example Library** — Pre-built demos to get started quickly
-- **Local Storage** — Automatic saving of your work
-
-### Script Viewer Customization & Dynamic Theming
-
-- **Dynamic App Theming** — Full workspace theming in **Light**, **Warm**, and **Dark** modes with seamless 250ms CSS variable switching
-- **Auto-Sync Mode** — Application shell automatically adapts to match the active screenplay paper category
-- **Theme Presets** — 6 screenplay paper themes: Studio Crisp, Warm Parchment, Midnight Slate, OLED Blackout, Navy Slate, Newsprint
-- **Mobile Theme Drawer** — Native bottom-sheet drawer with 4-segment mode switcher and compact swatch cards
-- **Adaptive Logo** — Automatic dark/white logo switching across light, warm, and dark surfaces
-- **Width Presets** — 5 reading column widths from Narrow (384px) to Expanded (1024px)
-- **Scroll Focus** — 3 viewport alignment anchors (Top, Center, Bottom) for auto-scroll positioning
-- **In-Place Cue Editing** — Edit cue text directly without touching raw JSON
-
-### Platform
-
-- **Mobile-Responsive** — Native bottom-sheet drawers for library and themes with adaptive staging badges
-- **App Info & Attribution** — Desktop information modal with dynamic versioning (`v2.2.0`), author attribution, and documentation resource links
-- **Keyboard Shortcuts** — Desktop hotkeys for playback (`Space`, `K`), seeking (`← / →`, `J / L`), and universal modal dismissal (`Esc`)
-- **Vercel Analytics** — Audience traffic insights and real-time Web Vitals monitoring
-- **PWA-Ready** — Web manifest and icon suite for standalone app installation
-
-### 📚 Expanded Library Catalogue
-
-Project X features a fully redesigned, responsive **Library Catalogue** serving as an interactive hub for screenplays, cinematic series, and AI-generated video examples:
-
-- **Dynamic Sorting & Filtering** — Toggle by newest, oldest, or A-Z with real-time search across titles, descriptions, tags, and volumes.
-- **Cross-Device Fluidity** — Full modal dialog on desktop; touch-friendly bottom-sheet drawer on mobile.
-- **Category Navigation** — Browse by AI Scenes, The Written Motion, FRAME Series, and AI Clips with contextual section badges.
-- **Featured Curations** — Handpicked standout scripts surfaced at the top.
-
-→ See the full list in **[Project X Catalogue](PROJECT_X_CATALOGUE.md)** with IDs, dates, and video models.
+    Input --> Agent
+    Agent --> Evaluation
+    Evaluation --> Persistence
+    Persistence --> Frontend
+```
 
 ---
 
-## 🎬 Use Cases
+## 🚀 Agentic Cinema Hackathon Additions (Transparency Disclosure)
 
-### Evaluating AI-Generated Video
+To maintain absolute transparency for hackathon judges, here is the clear breakdown of what was newly engineered for the **Agentic Cinema Hackathon** versus the inherited synchronization viewer foundation:
 
-Project X helps you see how well an AI model followed your screenplay prompt:
-
-- **Assess Prompt Adherence** — Compare what you wrote vs. what the model generated
-- **Spot Gaps** — Quickly identify which script elements were missed or poorly rendered
-- **Compare Models** — Test the same script across different AI video generators
-- **Iterate on Prompts** — Understand what works and refine your screenplay instructions
-
-### Example Projects
-
-Browse all projects in the **[Project X Catalogue](PROJECT_X_CATALOGUE.md)** — organized by AI Scenes, The Written Motion, FRAME Series, and AI Clips, each with shareable `?example=` IDs.
+| Area | Hackathon Additions (NEW) | Inherited Project X Foundation (PRE-EXISTING) |
+|---|---|---|
+| **Autonomous Agent Layer** | **Gemini Director Agent** (`server/gemini/directorAgent.ts`, `server/api.ts`) with 4 registered tools (`parse_script`, `analyze_video`, `evaluate_adherence`, `generate_regeneration_prompt`). | Manual playback synchronization and manual text highlighting. |
+| **Fidelity Scoring Engine** | **Deterministic Category Scoring Engine** (`src/lib/scoringEngine.ts`) with weighted cinematic categories, 0–100% script fidelity, and critical failure ranking. | Basic cue color categories without mathematical scoring or status metrics. |
+| **Beat Parser** | **Screenplay Beat Extractor** (`src/lib/scriptBeatParser.ts`) that extracts `[[INTENT]]`, `[[LOGIC]]`, `[[AESTHETIC]]`, and `[<BRIEF>]` state-transition lines into structured evaluation beats. | Regex regex-based CSS highlight tokenization. |
+| **Data Persistence** | **ClickHouse Cloud Schema & Client** (`server/db/clickhouse.ts`) storing `generation_runs` and `cue_analysis`, plus **Google Cloud Storage** (`server/storage/gcs.ts`) for run artifacts. | Browser `localStorage` only. |
+| **Failure Diagnosis** | **Interactive Critical Failure Inspector** with 1-click timeline seeking, observed vs. expected diffs, and severity badges (`critical`, `warning`, `info`). | Flat list of cues without failure metadata or diagnostics. |
+| **Prompt Regeneration** | **Targeted Prompt Fix Modal** (`src/components/RegenerationModal.tsx`) producing prompt revisions, negative constraints, camera adjustments, and continuity guardrails. | None. |
+| **Cross-Gen Analytics** | **Cross-Gen History Modal** (`src/components/CrossGenHistoryModal.tsx`) tracking generation run progression (Attempt 1 → Attempt 2 → Attempt 3) with category deltas and narrative. | None. |
+| **Visual Indicators** | Real-time **status pills** on cues (Matched = Emerald, Partial = Amber, Missed = Rose, Uncertain = Slate) and **Fidelity Score Badge** on header. | Generic category color classes only. |
+| **Benchmark Fixture & Tests** | Pre-evaluated benchmark scene (`public/examples/demo_frequency_qa.json`) and **10 passing automated tests** in Vitest (`tests/`). | No automated test framework. |
 
 ---
 
-## 🚀 Getting Started
+## 🌟 Key Features
+
+### 1. Autonomous Gemini Director Agent
+- Analyzes screenplay staging directives (`[[INTENT]]`, `[[LOGIC]]`, `[[AESTHETIC]]`, `[[OPENING]]`) alongside video frames.
+- Aligns micro-action beats and dialogue lines to video timecodes with sub-second accuracy.
+- Evaluates visual adherence with explicit reasoning and confidence scores (0.00–1.00).
+
+### 2. Weighted Cinematic Fidelity Scoring
+Different cinematic dimensions carry distinct storytelling weight:
+- **Dialogue** (Weight: 1.2) — Speech delivery, character cadence, script matching.
+- **Action / Blocking** (Weight: 1.2) — Character motion, physical interactions, prop handling.
+- **Camera Movement** (Weight: 1.0) — Framing (EWS, MCU, CU), tracking speed, 180° axis adherence.
+- **Shot Composition** (Weight: 1.0) — Aspect framing and compositional balance.
+- **Audio & SFX** (Weight: 0.9) — Foley sync, environmental ambiance, sound envelope.
+- **VFX** (Weight: 0.9) — Visual effect timing and particle realism.
+- **Environment & Lighting** (Weight: 0.9) — Color temperature (e.g. tungsten vs. fluorescent), textures, atmosphere.
+- **Transitions** (Weight: 0.9) — Match-on-action cuts and scene boundary pacing.
+
+### 3. Critical Failure Diagnosis & 1-Click Jump
+- Identifies divergences where visual adherence falls below acceptable thresholds (< 60%).
+- Categorizes failures by severity (`critical`, `warning`, `info`).
+- Clicking any failure instantly jumps the video player and screenplay auto-scroll directly to the exact millisecond of the failure.
+
+### 4. Surgical Prompt Fix & Regeneration
+- Generates tailored regeneration prompt updates for failed cues:
+  - **Revised Staging Directive**: Surgical prompt replacement snippet.
+  - **Camera Corrections**: Exact lens and axis framing adjustments.
+  - **Action Corrections**: Physical blocking instructions.
+  - **Negative Constraints**: Explicit negative prompts (e.g. `(delayed prop interaction:1.3)`, `(cool white light:1.5)`).
+  - **Continuity Guardrails**: Cross-shot consistency constraints.
+- One-click copy button for rapid iteration in Midjourney, Kling, Dreamina, Veo, or Runway.
+
+### 5. Cross-Generation Progression in ClickHouse
+- Stores historical runs per project and scene in ClickHouse Cloud.
+- Displays multi-attempt trajectory: **Attempt 1 (61%) → Attempt 2 (78%) → Attempt 3 (88%)**.
+- Highlights category-by-category score progressions and Gemini director summary notes.
+
+### 6. Dual-Mode Resilient Architecture
+- **Online Cloud Mode**: Leverages live `@google/genai` Multimodal API, ClickHouse Cloud, and Google Cloud Storage.
+- **Resilient Fallback Mode**: If cloud services or keys are offline, Project X seamlessly falls back to its deterministic director engine in-memory, ensuring hackathon judges and offline reviewers experience zero crashes and full functionality.
+
+---
+
+## 🛠️ Quickstart & Local Setup
 
 ### Prerequisites
-
-- [Node.js](https://nodejs.org/) (v18 or higher)
+- Node.js 18+
 - npm or yarn
 
-### Installation
-
+### 1. Clone & Install
 ```bash
-# Clone the repository
 git clone https://github.com/mylife-as-miles/Project-X.git
-
-# Navigate to project directory
-cd Project X
-
-# Install dependencies
+cd Project-X
 npm install
 ```
 
-### Running Locally
+### 2. Configure Environment (Optional)
+Copy `.env.example` or create a `.env` file in the root directory:
+```env
+# Google Gemini Multimodal API Key (for live Gemini Director calls)
+GEMINI_API_KEY=your_gemini_api_key_here
 
+# ClickHouse Cloud Connection (for persistent generation run tracking)
+CLICKHOUSE_HOST=https://your-clickhouse-host.clickhouse.cloud:8443
+CLICKHOUSE_USER=default
+CLICKHOUSE_PASSWORD=your_clickhouse_password
+CLICKHOUSE_DATABASE=default
+
+# Google Cloud Storage (for run artifact persistence)
+GCS_BUCKET_NAME=project-x-analysis-artifacts
+```
+> **Note**: Project X features a resilient dual-mode architecture. If credentials are omitted, the application runs in local intelligence mode with full QA evaluation, benchmark comparisons, and regeneration modal features enabled out of the box!
+
+### 3. Start Development Server
 ```bash
-# Start development server
 npm run dev
+```
+Open `http://localhost:3000` in your browser. The Vite server automatically mounts the Express `/api` middleware.
 
-# Open in browser
-# Default: http://localhost:3000
+### 4. Run Automated Tests
+```bash
+npm test
+```
+Executes all Vitest test suites verifying scoring logic, beat parsing, and ClickHouse mapping.
+
+### 5. Production Build
+```bash
+npm run build
 ```
 
 ---
 
-## 📘 Usage Guide
+## 🧪 Benchmark Demo Scene: "Frequency Over Force"
 
-### Playback Mode
+For immediate evaluation, Project X loads a pre-evaluated benchmark scene: **⚡ Frequency Over Force (Agentic QA Evaluated)**:
+- **Screenplay**: Academic drama written in Auteur Script format with full `[[INTENT]]`, `[[LOGIC]]`, `[[AESTHETIC]]`, and `[<BRIEF>]` state chaining.
+- **Video Source**: Multi-shot academic film with metronome demonstration.
+- **QA Metrics**: 108 evaluated cues, 88% overall script fidelity.
+- **Diagnosed Divergences**:
+  - `cue-032` (Critical): Lighting temperature deviation (cool wash instead of tungsten amber).
+  - `cue-017` (Warning): Prop timing drift on wooden casing thumb contact (+0.6s).
+  - `cue-024` (Warning): Stage axis drift during character approach.
 
-1. **Load a Script** — Use the built-in Library (`?example=ID`), load a remote URL (`?project=URL`), or import a JSON project file.
-2. **Play the Video** — The script highlights in real-time as the video timeline progresses.
-3. **Auto-Scroll & Focus Mode** — Script automatically follows active cues. Click the **Focus Mode** dropdown next to Auto-Scroll to filter which cue types trigger scrolling (e.g., track *Dialogue* only).
-4. **Scroll Focus Line** — Choose where the active cue centers in your viewport (Top 35%, Center 50%, or Bottom 65%).
-5. **Script Width Presets** — Toggle between 5 reading column widths (Narrow to Expanded) for side-by-side video review.
-6. **Script Themes** — Switch between 6 light, warm, and OLED dark themes via the theme picker.
-
-### Edit Mode
-
-1. **Switch to Edit** — Click the "Edit" toggle in the header.
-2. **Set Video Source** — Paste any YouTube video URL, short ID, or direct video link.
-3. **Edit Script Text** — Click "Edit Raw" to modify the complete script and staging blocks.
-4. **Create & Adjust Cues**:
-   - Highlight any text in the script preview to open the Cue Editor.
-   - Snap start/end timestamps using the clock button or manual inputs.
-   - Choose a cue category (Dialogue, Action, Camera, Shot, Audio, VFX, Transition, Environment).
-   - Edit the selected cue text directly in-place using the monospace editor without touching raw JSON.
-5. **Handle Overlaps** — Click overlapping highlights in the script to select specific cues via the Overlap Picker.
-6. **Align Cues** — Click "Align" to automatically re-anchor highlights if script text changes; use "Find Alternative" to resolve duplicate phrase occurrences.
-7. **Export** — Download a portable JSON project file via "Save Sync".
-
-### Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| `Space` / `K` | Play / Pause video |
-| `←` / `J` | Rewind 5 seconds |
-| `→` / `L` | Forward 5 seconds |
-| `Esc` | Close active modal / dialog |
-
+Click **"Script Fidelity: 88%"** in the header or **"Analyze with Gemini"** to test the system!
 
 ---
 
-## 🔗 Sharing & Query Parameters
+## 📄 License & Attribution
 
-Project X supports sharing projects directly via URL. When a project is loaded via query parameter, a confirmation dialog will appear to prevent overwriting your current work.
+Licensed under the **MIT License** — see [LICENSE](LICENSE) for details.
 
-### Loading Examples
-
-You can load any built-in screenplay example directly by appending `?example=ID` to the URL. 
-
-See the **[Project X Catalogue](PROJECT_X_CATALOGUE.md)** for the complete ID-to-title reference across all four sections.
-
-### Loading Remote Projects
-
-You can load any JSON project hosted on a CORS-enabled server by appending `?project=URL`.
-
-**Example:**
-`project-x.vercel.app/?project=https://raw.githubusercontent.com/user/repo/main/script.json`
-
-> **Note**: The remote server must allow Cross-Origin Resource Sharing (CORS) for the fetch to succeed. GitHub Gist "Raw" links are recommended for sharing.
-
----
-
-## 📝 Script Formatting Guide
-
-Project X uses deterministic heuristics and regex to parse, render, and synchronize both traditional screenplays and technical Auteur Scripts.
-
-### Two Supported Scripting Workflows
-
-Project X accommodates both major prompting styles used across AI filmmaking:
-
-1. **Classic Auteur (Screenplay Style)**:
-   - Uses traditional cinema formatting: Scene Headings (`INT./EXT.`), character dialogue blocks, parentheticals, and bold action lines.
-   - Ideal for narrative scenes, multi-page drama, and human-readable script sharing where natural language guides the model's visual staging.
-2. **Auteur Script (Technical State Engine)**:
-   - Uses modular state-transition blocks enclosed in `[<BRIEF>]` tags with chained arrows (`->`) and bold anchor tokens (`[CAM]`, `[ACT]`, `[AUDIO]`, `[STATE OUT]`).
-   - Ideal for reasoning-based video models where each Macro-State line ($S_n$) inherits the visible physical coordinates of the previous beat without hallucinating resets.
-
-Both workflows share the exact same Staging metadata and Timeline Cue synchronization engines.
-
-### Core Elements Table
-
-| Element | Format | Example |
-|---------|--------|---------|
-| **Scene Heading** | Starts with `INT.` or `EXT.` | `INT. OFFICE - DAY` |
-| **Character Name** | ALL CAPS followed by a colon | `JOHN:` |
-| **Dialogue** | Lines immediately following a character name | `Everything starts with intent.` |
-| **Parenthetical** | Text wrapped in parentheses | `(whispering with excitement)` |
-| **Bold Direction** | Single line in ALL CAPS (emphasized action) | `HE PIVOTS SHARPLY TO FACE THE DOOR.` |
-| **Action** | Mixed case narrative paragraphs | `The cursor blinks on a clean slate as the creator leans in.` |
-| **Shot / Camera Note** | Text wrapped in square brackets `[...]` | `[CLOSE-UP – MONITOR DISPLAY]` |
-| **Effect** | Starts with `SFX:` or `VFX:` | `SFX: Mechanical keyboard click` |
-| **Separator** | Three dashes on a single line | `---` |
-| **Part Separator** | `PART` followed by a number | `PART 1` |
-| **Roman Title** | Roman numeral + dot + Uppercase Title | `I. THE BEGINNING` |
-| **Auteur Script Block** | Block wrapped in `[<BRIEF>]` and `[</BRIEF>]` | *See below* |
-
----
-
-### Staging Blocks (Auteur Script Scaffold)
-
-Project X embeds high-level prompt directives directly into your project using **Staging Blocks**. Staging content is concealed from the main reading flow and replaced with an interactive **STAGING** badge that opens a monospace inspector modal.
-
-#### The 5-Part Scaffold Architecture:
-The standard Auteur Script framework is built upon a 5-part scaffold (modular and adaptable based on the specific scene or generation task):
-1. `[INTENT]` — High-level vision, subject definition, and core emotional beat.
-2. `[LOGIC]` — Hard guardrails for visual planning (spatial continuity, 180° axis, object permanence).
-3. `[AESTHETIC]` — Master audio-visual reference (palette, lighting, wardrobe, location, textures).
-4. `[OPENING]` — Locked first-frame coordinate anchor ($S_0$) establishing baseline geometry.
-5. `[EXECUTION]` — Active timeline state-transition pipeline (wrapped in `[<BRIEF>]`).
-
-#### Staging Directives in Project X:
-Within Project X, all non-execution setup blocks (parts 1–4) are encapsulated inside `[[STAGING]]...[[/STAGING]]` to keep the reading timeline clean:
-- `[[INTENT]]` — Scene vision, identity, and tone.
-- `[[LOGIC]]` — Hard guardrails for visual planning.
-- `[[AESTHETIC]]` — Master audio-visual styling parameters.
-- `[[OPENING]]` — Starting first-frame coordinate anchor ($S_0$).
-- *Optional Extensions:* Directives like `[[CONTINUITY PROTOCOL]]` can be added for multi-shot video extensions; legacy directives (`[[GLOBAL]]` and `[[LOOKBOOK]]`) remain fully backward-compatible.
-- *Execution Separation:* Everything inside `[<BRIEF>]...[</BRIEF>]` represents the **`[EXECUTION]`** block (never labeled as staging), driving the active state-transition pipeline.
-
-#### Staging Example:
-
-```text
-[[STAGING]]
-[[INTENT]]
-Create a cinematic, dialogue-driven academic drama scene featuring Mark and Robert.
-[[/INTENT]]
-[[LOGIC]]
-Ensure rigid spatial continuity across camera setups. Preserve object permanence for the metronome.
-[[/LOGIC]]
-[[AESTHETIC]]
-Medium: 35mm film texture.
-Palette: Deep navy blue, rich mahogany dark oak, warm amber tungsten.
-Lighting: Overhead tungsten auditorium grid lighting.
-[[/AESTHETIC]]
-[[OPENING]]
-Establishing wide shot of the auditorium stage. Mark stands stage left; Robert holds a wooden metronome stage right.
-[[/OPENING]]
-[[/STAGING]]
-```
-
----
-
-### Auteur Script Formatting Engine (`[<BRIEF>]`)
-
-For high-precision AI video models, wrap your timeline execution in `[<BRIEF>]` blocks. Project X renders this in a dedicated monospace card and applies two automatic layout engines:
-
-- **Waterfall Indentation**: Every `->` delimiter automatically creates a new line with nested indentation (`\n    -> `), turning complex prompt sequences into clean visual beat cascades.
-- **Bold Anchor Tagging**: Any bracketed dimension tag like `[CAM]`, `[ACT]`, `[AUDIO]`, `[STATE IN]`, or `[STATE OUT]` is automatically bolded (`<b>[...]</b>`) for rapid cognitive scanning.
-- **State Chaining**: Each line represents a **Macro-State** ($S_n$), composed of modular **Sub-States** that map frame transformations over time.
-
-#### Auteur Script Example:
-
-```text
-[<BRIEF>]
-[CAM 01] MS, eye-level lockoff -> [ACT] Creator types the first command -> Creator: "Let's build." -> <Mechanical keyboard click> -> [STATE OUT] Frame locked in clean focus
-[CAM 02] MCU, low-angle on monitor -> [ACT] Screen reflects glowing amber text -> [AUDIO] Low cooling fan hum
-[</BRIEF>]
-```
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
-
-**Author:** Taruma Sakti Megariansyah
-
----
-
-<div align="center">
-  <p>
-    <a href="https://project-x.vercel.app/">🌐 Live App</a>
-    ·
-    <a href="https://x.com/tarumainfo">@tarumainfo</a>
-  </p>
-</div>
+Developed for **Agentic Cinema: The Blockbuster Hackathon** (2026).

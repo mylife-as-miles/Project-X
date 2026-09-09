@@ -40,7 +40,14 @@ import { useAutoScroll } from './hooks/useAutoScroll';
 import { useCueEditor } from './hooks/useCueEditor';
 import { useCueAlignment } from './hooks/useCueAlignment';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import type { Cue, AppMode } from './types/script';
+import type { 
+  Cue, 
+  AppMode, 
+  AnalysisSummary, 
+  AnalysisPipelineProgress, 
+  RegenerationRecommendation, 
+  GenerationComparison 
+} from './types/script';
 import { 
   COLORS, 
   DEFAULT_SETTINGS, 
@@ -53,6 +60,16 @@ import {
   exportStateToJsonFile,
   validateImportedScriptJson
 } from './lib/cueUtils';
+import { 
+  runAgenticAnalysis, 
+  requestPromptFix, 
+  fetchSceneHistory 
+} from './lib/apiClient';
+import { generateAnalysisSummary } from './lib/scoringEngine';
+import { FidelityDashboard } from './components/FidelityDashboard';
+import { RegenerationModal } from './components/RegenerationModal';
+import { CrossGenHistoryModal } from './components/CrossGenHistoryModal';
+import { AnalysisProgressBar } from './components/AnalysisProgressBar';
 
 export default function App() {
   const [activeStaging, setActiveStaging] = useState<{ label: string; content: string } | null>(null);
@@ -64,6 +81,19 @@ export default function App() {
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [rawCuesText, setRawCuesText] = useState("");
   const [leftPanelScroll, setLeftPanelScroll] = useState(0);
+
+  // Agentic QA & Fidelity State
+  const [analysisSummary, setAnalysisSummary] = useState<AnalysisSummary | null>(null);
+  const [isFidelityDashboardOpen, setIsFidelityDashboardOpen] = useState(false);
+  const [selectedFailureForRegen, setSelectedFailureForRegen] = useState<Cue | null>(null);
+  const [regenRecommendation, setRegenRecommendation] = useState<RegenerationRecommendation | null>(null);
+  const [isRegenModalOpen, setIsRegenModalOpen] = useState(false);
+  const [isRegenLoading, setIsRegenLoading] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [comparisonData, setComparisonData] = useState<GenerationComparison | null>(null);
+  const [pipelineProgress, setPipelineProgress] = useState<AnalysisPipelineProgress | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const scriptRef = useRef<HTMLDivElement>(null);
   const leftPanelRef = useRef<HTMLDivElement>(null);
@@ -167,8 +197,110 @@ export default function App() {
     activeStaging ||
     deleteConfirmation.isOpen ||
     resetConfirmation.isOpen ||
-    overlapPicker.isOpen
+    overlapPicker.isOpen ||
+    isFidelityDashboardOpen ||
+    isRegenModalOpen ||
+    isHistoryModalOpen
   );
+
+  // Automatically calculate initial analysisSummary whenever cues change or have adherenceScores
+  useEffect(() => {
+    const scoredCues = state.cues.filter(c => typeof c.adherenceScore === 'number' || c.status);
+    if (scoredCues.length > 0) {
+      setAnalysisSummary(generateAnalysisSummary(state.cues));
+    }
+  }, [state.cues]);
+
+  // Primary Agentic QA Action: Analyze with Gemini
+  const handleAnalyzeWithGemini = async () => {
+    if (isAnalyzing) return;
+    setIsAnalyzing(true);
+    setPipelineProgress({
+      stage: 'preparing_script',
+      message: 'Preparing screenplay and video context...',
+      step: 1,
+      totalSteps: 6,
+    });
+
+    try {
+      const result = await runAgenticAnalysis({
+        scriptText: state.scriptText,
+        videoSource: state.youtubeId,
+        sceneId: 'scene_frequency',
+        generationNumber: 3,
+        onProgress: (message, step, totalSteps) => {
+          setPipelineProgress({
+            stage: step === 6 ? 'complete' : 'analyzing_script',
+            message,
+            step,
+            totalSteps,
+          });
+        },
+      });
+
+      setState(prev => ({
+        ...prev,
+        cues: result.cues,
+      }));
+      setAnalysisSummary(result.summary);
+      setIsFidelityDashboardOpen(true);
+    } catch (err: any) {
+      console.error('Failed to run agentic analysis:', err);
+      setPipelineProgress({
+        stage: 'error',
+        message: 'Agentic analysis encountered an error.',
+        step: 1,
+        totalSteps: 6,
+        error: err.message,
+      });
+    } finally {
+      setIsAnalyzing(false);
+      setTimeout(() => {
+        setPipelineProgress(null);
+      }, 3500);
+    }
+  };
+
+  // Jump to failure timestamp and highlight script cue
+  const handleJumpToFailure = (timestamp: number, cueId: string) => {
+    if (player) {
+      player.seekTo(timestamp, true);
+      setCurrentTime(timestamp);
+    }
+    const targetElement = document.querySelector(`[data-cue-id="${cueId}"]`);
+    if (targetElement) {
+      targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
+  // Fix With Agent
+  const handleFixWithAgent = async (cue: Cue) => {
+    setSelectedFailureForRegen(cue);
+    setIsRegenModalOpen(true);
+    setIsRegenLoading(true);
+    try {
+      const rec = await requestPromptFix({ cue });
+      setRegenRecommendation(rec);
+    } catch (e) {
+      console.warn('Fix error:', e);
+    } finally {
+      setIsRegenLoading(false);
+    }
+  };
+
+  // Open History Modal
+  const handleOpenHistory = async () => {
+    setIsHistoryModalOpen(true);
+    setIsHistoryLoading(true);
+    try {
+      const comp = await fetchSceneHistory('scene_frequency');
+      setComparisonData(comp);
+    } catch (e) {
+      console.warn('History error:', e);
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  };
 
   const { isDesktop } = useKeyboardShortcuts({
     player,
@@ -628,6 +760,11 @@ export default function App() {
         themeMode={themeMode}
         effectiveThemeCategory={effectiveCategory}
         onCycleThemeMode={cycleThemeMode}
+        onAnalyzeWithGemini={handleAnalyzeWithGemini}
+        isAnalyzing={isAnalyzing}
+        overallFidelityScore={analysisSummary?.overallFidelityScore ?? null}
+        onOpenFidelityDashboard={() => setIsFidelityDashboardOpen(true)}
+        onOpenHistory={handleOpenHistory}
       />
 
       <main className={cn(
@@ -988,6 +1125,43 @@ export default function App() {
       <AppInfoModal
         isOpen={isInfoModalOpen}
         onClose={() => setIsInfoModalOpen(false)}
+      />
+
+      {/* Script-to-Screen Fidelity QA Dashboard */}
+      <FidelityDashboard
+        isOpen={isFidelityDashboardOpen}
+        onClose={() => setIsFidelityDashboardOpen(false)}
+        summary={analysisSummary}
+        cues={state.cues}
+        onJumpToCue={handleJumpToFailure}
+        onFixWithAgent={handleFixWithAgent}
+        onOpenHistory={handleOpenHistory}
+      />
+
+      {/* Regeneration Fix Modal */}
+      <RegenerationModal
+        isOpen={isRegenModalOpen}
+        onClose={() => {
+          setIsRegenModalOpen(false);
+          setSelectedFailureForRegen(null);
+        }}
+        cue={selectedFailureForRegen}
+        recommendation={regenRecommendation}
+        isLoading={isRegenLoading}
+      />
+
+      {/* Cross-Gen History & Comparison Modal */}
+      <CrossGenHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        comparison={comparisonData}
+        isLoading={isHistoryLoading}
+      />
+
+      {/* Pipeline Progress Indicator */}
+      <AnalysisProgressBar
+        progress={pipelineProgress}
+        isAnalyzing={isAnalyzing}
       />
     </div>
   );

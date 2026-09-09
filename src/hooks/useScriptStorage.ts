@@ -36,7 +36,7 @@ export function useScriptStorage() {
   useEffect(() => {
     const saved = localStorage.getItem('project_x_state');
     if (!saved) {
-      fetch('/examples/scene_frequency.json')
+      fetch('/examples/demo_frequency_qa.json')
         .then(res => res.json())
         .then(data => {
           const sanitizedData = {
@@ -65,7 +65,7 @@ export function useScriptStorage() {
 
   const resetToDefault = useCallback(async () => {
     try {
-      const res = await fetch('/examples/scene_frequency.json');
+      const res = await fetch('/examples/demo_frequency_qa.json');
       const data = await res.json();
       const finalData = { 
         ...data, 
