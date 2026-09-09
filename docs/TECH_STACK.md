@@ -20,7 +20,7 @@ Project X is built with a modern, lightweight, and performant web stack designed
     - `--font-sans`: `"Inter", ui-sans-serif, system-ui, sans-serif`
     - `--font-serif`: `"Libre Baskerville", serif`
     - `--font-mono`: `"JetBrains Mono", monospace`
-  - **Semantic Color Tokens**: Mapped from `:root` variables to `@theme` for cohesive app-wide styling (`--color-app`, `--color-surface`, `--color-surface-subtle`, `--color-surface-muted`, `--color-surface-hover`, `--color-surface-dark`, `--color-border-main`, `--color-border-subtle`, `--color-text-main`, `--color-text-body`, `--color-text-muted`, `--color-text-faint`, `--color-overlay-bg`, `--color-overlay-heavy`, `--color-support`, `--color-support-hover`).
+  - **Semantic Color Tokens**: Mapped from `:root` variables to `@theme` for cohesive app-wide styling (`--color-app`, `--color-surface`, `--color-surface-subtle`, `--color-surface-muted`, `--color-surface-hover`, `--color-surface-dark`, `--color-border-main`, `--color-border-subtle`, `--color-text-main`, `--color-text-body`, `--color-text-muted`, `--color-text-faint`, `--color-overlay-bg`, `--color-overlay-heavy`).
 - **Modular Design Token Engine (`src/styles/`)**: Centralized design tokens and theme packages:
   - `UI_TOKENS` (`src/styles/tokens/ui.ts`): Uniform Tailwind class definitions across layout frames, modal containers & overlays, dropdown menus, buttons & pills, form inputs, badge tags, panel cards, and swatches.
   - Theme Tokens (`src/styles/tokens/themes.ts`, `cues.ts`, `typography.ts`, `helpers.ts`): Theme-calibrated color palettes and typography rules.

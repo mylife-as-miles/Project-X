@@ -73,7 +73,7 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
       {
         id: 'the_distance',
         title: 'The Distance',
-        path: 'https://gist.githubusercontent.com/taruma/c8da62882754be561c4b69a2e06ec9ae/raw/b8a2db467340ab1cf87a784863bacbfed231a0dc/the_distance_project_x.json',
+        path: '/examples/duet_of_distance.json',
         description: 'The hardest distance to close is the one between two people in the same room.',
         releaseDate: '2026-04-14',
         tags: ['classic auteur', 'invideo', 'seedance 2.0']

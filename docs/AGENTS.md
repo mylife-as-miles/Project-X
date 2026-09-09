@@ -31,7 +31,7 @@ If you need to add a new script line type (e.g., `lyrics`, `transition`, or a sp
 
 - **Modular Design Tokens (`src/styles/tokens/`)**:
   - `ui.ts`: Centralized `UI_TOKENS` for layout shells (`layout`), modals & overlays (`modal`), dropdown menus (`dropdown`), buttons & action pills (`button`), form controls (`input`), badges & time tags (`badge`), panel cards (`panel`), swatches (`swatch`), and alert containers (`alert`).
-  - `src/index.css`: Semantic CSS custom properties defined in `:root` (`--app-bg`, `--surface`, `--border-main`, `--text-main`, `--overlay-bg`, `--color-support`) and mapped into Tailwind CSS v4's `@theme` directive.
+  - `src/index.css`: Semantic CSS custom properties defined in `:root` (`--app-bg`, `--surface`, `--border-main`, `--text-main`, `--overlay-bg`) and mapped into Tailwind CSS v4's `@theme` directive.
   - `themes.ts`: Six visual themes configured in `SCRIPT_THEMES` (`light`, `warm`, `dark`).
   - `cues.ts`: Theme-calibrated RGB strings (`lightRgb`, `warmRgb`, `darkRgb`) defined in `CUE_THEME_COLORS` and resolved via `getCueColorForTheme(typeOrClass, themeId)`.
   - `typography.ts`: Theme-specific structural classes and typography generated dynamically via `getScriptThemeStyles(themeId)`.

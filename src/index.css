@@ -25,8 +25,6 @@
   --btn-secondary-hover: #e7e5e4;
   --overlay-bg: rgba(28, 25, 23, 0.4);
   --overlay-heavy: rgba(28, 25, 23, 0.6);
-  --color-support: #FF5E5B;
-  --color-support-hover: #e04e4b;
 }
 
 [data-theme-category="warm"] {
@@ -52,8 +50,6 @@
   --btn-secondary-hover: #dfd7c5;
   --overlay-bg: rgba(43, 35, 29, 0.45);
   --overlay-heavy: rgba(43, 35, 29, 0.65);
-  --color-support: #FF5E5B;
-  --color-support-hover: #e04e4b;
 }
 
 [data-theme-category="dark"] {
@@ -79,8 +75,6 @@
   --btn-secondary-hover: #2e2a27;
   --overlay-bg: rgba(0, 0, 0, 0.65);
   --overlay-heavy: rgba(0, 0, 0, 0.85);
-  --color-support: #FF5E5B;
-  --color-support-hover: #e04e4b;
 }
 
 @theme {
@@ -111,8 +105,6 @@
   --color-btn-secondary-hover: var(--btn-secondary-hover);
   --color-overlay-bg: var(--overlay-bg);
   --color-overlay-heavy: var(--overlay-heavy);
-  --color-support: var(--color-support);
-  --color-support-hover: var(--color-support-hover);
 }
 
 body {
